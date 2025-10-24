@@ -1,0 +1,136 @@
+{% extends "base.html" %} {% block content %}
+<div class="header">
+    <h1>Smart Sensor Monitor</h1>
+    <p>Real-time motion detection and door monitoring system</p>
+    <p><small>Local Time (Perth) • Frequency-Based Analysis</small></p>
+    <div>
+        Connection Status: <span id="connection-status">Connecting...</span>
+        <span id="status-indicator" class="status-indicator disconnected"></span>
+    </div>
+</div>
+
+<div class="controls">
+    <div class="tab-buttons">
+        <button class="tab-button active" onclick="switchTab('live')">Live Status</button>
+        <button class="tab-button" onclick="switchTab('graphs')">Activity Frequency</button>
+        <button class="tab-button" onclick="switchTab('log')">Activity Log</button>
+        <button class="tab-button" onclick="switchTab('review')">Sequence Review</button>
+    </div>
+    <a href="/download/activity" class="download-btn">Download Full Log</a>
+</div>
+
+<div id="live-tab" class="tab-content active">
+    <div class="sensors-grid" id="sensors-grid">
+        <!-- Sensor cards will be populated by JavaScript -->
+    </div>
+</div>
+
+<div id="graphs-tab" class="tab-content">
+    <div class="chart-container">
+        <div class="chart-controls">
+            <h3>Sensor Activity Frequency Analysis</h3>
+            <div class="control-group">
+                <label>Time Range:</label>
+                <select class="time-selector" id="timeRange" onchange="handleIntervalChange()">
+                    <option value="6">Last 6 Hours</option>
+                    <option value="12">Last 12 Hours</option>
+                    <option value="24" selected>Last 24 Hours</option>
+                    <option value="48">Last 2 Days</option>
+                    <option value="168">Last Week</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Interval:</label>
+                <select class="interval-selector" id="intervalRange" onchange="handleIntervalChange()">
+                    <option value="15">15 Minutes</option>
+                    <option value="30" selected>30 Minutes</option>
+                    <option value="60">1 Hour</option>
+                    <option value="120">2 Hours</option>
+                    <option value="240">4 Hours</option>
+                </select>
+            </div>
+        </div>
+
+        <canvas id="frequencyChart"></canvas>
+        <div class="chart-info" id="chartInfo">
+            Loading frequency data...
+        </div>
+    </div>
+</div>
+
+<div id="log-tab" class="tab-content">
+    <div class="activity-log">
+        <h3>Recent Activity</h3>
+        <div id="activity-list">
+            <p style="opacity: 0.6; text-align: center;">Waiting for sensor activity...</p>
+        </div>
+    </div>
+</div>
+
+<div id="review-tab" class="tab-content">
+    <div class="review-container">
+        <h2>Sequence Review & Labeling</h2>
+
+        <div class="processing-controls">
+            <div class="control-group">
+                <label>Window Size (sec):</label>
+                <input type="number" id="windowSize" value="60" min="30" max="300">
+            </div>
+            <div class="control-group">
+                <label>Gap Threshold (sec):</label>
+                <input type="number" id="gapThreshold" value="300" min="60" max="1800">
+            </div>
+            <button class="action-btn" onclick="processSequences(false)" id="fullProcessBtn">
+                Full Process
+            </button>
+            <button class="action-btn secondary" onclick="processSequences(true)" id="incrementalProcessBtn">
+                Incremental Process
+            </button>
+            <button class="action-btn secondary" onclick="loadProcessorState()" id="loadStateBtn">
+                Load State
+            </button>
+        </div>
+
+        <div class="stats-panel" id="statsPanel">
+            <div class="stat-item">
+                <div class="stat-value" id="totalSequences">-</div>
+                <div class="stat-label">Total Sequences</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="labeledSequences">-</div>
+                <div class="stat-label">Labeled</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="unlabeledSequences">-</div>
+                <div class="stat-label">Unlabeled</div>
+            </div>
+        </div>
+
+        <div class="sequence-list" id="sequenceList">
+            <div class="loading">Click "Load State" or process sequences to begin</div>
+        </div>
+
+        <div class="pagination" id="pagination" style="display: none;">
+            <button onclick="changePage(-1)" id="prevBtn">Previous</button>
+            <span id="pageInfo">Page 1 of 1</span>
+            <button onclick="changePage(1)" id="nextBtn">Next</button>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Sequence Detail Modal -->
+<div class="modal" id="sequenceModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Sequence Details</h2>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div id="sequenceDetail">
+            <div class="loading">
+                <div class="spinner"></div> Loading sequence details...
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
