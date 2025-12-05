@@ -312,13 +312,15 @@ class SensorSequenceTrainer:
         n_splits = min(5, min_samples)
 
         if n_splits < 2:
-            print(f"\n⚠️  WARNING: Only {min_samples} samples in smallest class.")
+            print(f"\nWARNING: Only {min_samples} samples in smallest class.")
             print("Cannot perform cross-validation. Training without hyperparameter tuning.")
             use_grid_search = False
         else:
             use_grid_search = True
             if n_splits < 5:
-                print(f"\n⚠️  Using {n_splits}-fold CV instead of 5-fold due to small class sizes")
+                print(
+                    f"\nUsing {n_splits}-fold CV instead of 5-fold due to small class sizes"
+                )
 
         # Split data
         try:
@@ -326,7 +328,7 @@ class SensorSequenceTrainer:
                 self.X, self.y, test_size=test_size, random_state=random_state, stratify=self.y
             )
         except ValueError:
-            print("⚠️  Cannot stratify split (too few samples). Using random split.")
+            print("Cannot stratify split (too few samples). Using random split.")
             X_train, X_test, y_train, y_test = train_test_split(
                 self.X, self.y, test_size=test_size, random_state=random_state
             )

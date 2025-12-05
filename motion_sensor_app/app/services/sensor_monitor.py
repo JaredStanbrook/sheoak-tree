@@ -1,351 +1,362 @@
+# app/services/sensor_monitor.py
 import RPi.GPIO as GPIO
-import json
 import time
 import threading
 import logging
-import csv
-import os
 from datetime import datetime, timedelta
-from dataclasses import dataclass
-from typing import List, Dict, Any
-import pandas as pd
-from app import socketio
+from app.extensions import socketio, db
+from app.models import Sensor, Event
+from sqlalchemy import func
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class MotionSensor:
-    """Class to hold sensor information"""
-
-    pin: int
-    name: str
-    sensor_type: str = "motion"  # "motion" or "door"
-
-
 class MotionSensorApp:
-    def __init__(self, debounce_ms=100):
 
+    def __init__(self, app, debounce_ms=300):
+        self.app = app  # Keep reference to Flask App for DB Context
         self.socketio = socketio
-        # Define sensors with GPIO pins, names, and types
-        # 23,4,5 GPIO are broken
-        self.sensors = [
-            MotionSensor(2, "Living Room", "motion"),
-            MotionSensor(6, "Hallway", "motion"),
-            MotionSensor(18, "Door", "door"),
-            MotionSensor(3, "Kitchen", "motion"),
-        ]
-
-        # Sensor states
-        self.sensor_states = [False] * len(self.sensors)
-        self.previous_states = [False] * len(self.sensors)
-        self.last_activity = {}
-
-        # Debounce tracking
         self.debounce_ms = debounce_ms
-        self.last_change_time = {sensor.name: datetime.min for sensor in self.sensors}
+        self._lock = threading.Lock()
 
-        # Activity logging
-        self.log_file = "sensor_activity.csv"
-        self.setup_logging()
+        # Runtime Cache (To avoid hitting DB 20 times a second)
+        self.sensors_cache = []
+        self.last_activity_map = {}
 
-        # Setup GPIO
-        self.setup_gpio()
+        self._load_sensors_to_cache()
+        self._setup_gpio()
 
-        # Start monitoring thread
         self.monitoring = True
-        self.monitor_thread = threading.Thread(target=self.monitor_sensors, daemon=True)
+        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self.monitor_thread.start()
 
-    def setup_logging(self):
-        """Initialize CSV logging file with headers if it doesn't exist"""
-        if not os.path.exists(self.log_file):
-            with open(self.log_file, "w", newline="") as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(
-                    [
-                        "timestamp",
-                        "sensor_name",
-                        "sensor_type",
-                        "gpio_pin",
-                        "state",
-                        "event",
-                    ]
+    def _load_sensors_to_cache(self):
+        """Load sensors from DB into memory for fast loop access"""
+        with self.app.app_context():
+            # Create default sensors if DB is empty
+            if Sensor.query.count() == 0:
+                self._seed_defaults()
+
+            # Load enabled sensors
+            sensors = Sensor.query.filter_by(enabled=True).all()
+
+            # Transform into simple objects for the loop
+            self.sensors_cache = []
+            for s in sensors:
+                self.sensors_cache.append(
+                    {
+                        "id": s.id,
+                        "pin": s.pin,
+                        "name": s.name,
+                        "type": s.type,
+                        "current_state": False,
+                        "last_change": datetime.min,
+                    }
                 )
-            logger.info(f"Created new activity log file: {self.log_file}")
+            logger.info(f"Loaded {len(self.sensors_cache)} sensors from DB.")
 
-    def log_activity(self, sensor: MotionSensor, state: bool, event: str):
-        """Log sensor activity to CSV file using system local time (Perth)"""
-        try:
-            # Use system local time (should be set to Perth timezone)
-            local_time = datetime.now()
+    def _seed_defaults(self):
+        """Initial Setup if fresh DB"""
+        defaults = [
+            Sensor(name="Living Room", pin=6, type="motion"),
+            Sensor(name="Hallway", pin=2, type="motion"),
+            Sensor(name="Front Door", pin=3, type="door"),
+            Sensor(name="Kitchen", pin=18, type="motion"),
+        ]
+        db.session.add_all(defaults)
+        db.session.commit()
 
-            with open(self.log_file, "a", newline="") as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(
-                    [
-                        local_time.isoformat(),
-                        sensor.name,
-                        sensor.sensor_type,
-                        sensor.pin,
-                        1 if state else 0,
-                        event,
-                    ]
-                )
-        except Exception as e:
-            logger.error(f"Error logging activity: {e}")
-
-    def setup_gpio(self):
-        """Initialize GPIO pins for sensors"""
-        try:
-            # Set GPIO mode
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setwarnings(False)
-
-            # Initialize sensor pins based on sensor type
-            for sensor in self.sensors:
-                GPIO.setup(sensor.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-                logger.info(
-                    f"Initialized {sensor.name} ({sensor.sensor_type}) on GPIO pin {sensor.pin}"
-                )
-
-        except Exception as e:
-            logger.error(f"Failed to setup GPIO: {e}")
-            raise
-
-    def read_sensors(self) -> bool:
-        """Read all sensors with debounce and return True if any state changed"""
-        state_changed = False
-
-        for i, sensor in enumerate(self.sensors):
+    def _setup_gpio(self):
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+        for s in self.sensors_cache:
             try:
-                raw_reading = GPIO.input(sensor.pin)
-
-                # Convert raw GPIO reading into logical state
-                if sensor.sensor_type == "door":
-                    new_state = raw_reading == GPIO.HIGH  # HIGH = door open
+                # NEW: Check type to decide Input vs Output
+                if s["type"] == "relay":
+                    GPIO.setup(s["pin"], GPIO.OUT)
+                    # Default to OFF (Low) on boot
+                    GPIO.output(s["pin"], GPIO.LOW)
+                    s["current_state"] = False
                 else:
-                    new_state = raw_reading == GPIO.HIGH  # HIGH = motion detected
-
-                # Debounce check
-                if new_state != self.previous_states[i]:
-                    now = datetime.now()
-                    elapsed_ms = (
-                        now - self.last_change_time[sensor.name]
-                    ).total_seconds() * 1000
-                    if elapsed_ms >= self.debounce_ms:
-                        # Accept state change
-                        self.previous_states[i] = new_state
-                        self.sensor_states[i] = new_state
-                        self.last_change_time[sensor.name] = now
-                        state_changed = True
-                        # Update last activity time (using system local time)
-                        self.last_activity[sensor.name] = datetime.now()
-
-                        # Determine event and whether to log
-                        should_log = False
-
-                        if sensor.sensor_type == "motion":
-                            if new_state:  # Only log motion detection, not clearing
-                                event = "Motion Detected"
-                                should_log = True
-                            else:
-                                event = (
-                                    "Motion Cleared"  # For socketio only, not logged
-                                )
-                        elif sensor.sensor_type == "door":
-                            # Log both door open and close
-                            event = "Door Opened" if new_state else "Door Closed"
-                            should_log = True
-                        else:
-                            # For any other sensor types
-                            event = "Active" if new_state else "Inactive"
-                            should_log = True
-
-                        logger.info(f"{event} - {sensor.name}")
-
-                        # Only log to CSV if should_log is True
-                        if should_log:
-                            self.log_activity(sensor, new_state, event)
-
-                        # Always emit real-time update via WebSocket
-                        self.socketio.emit(
-                            "sensor_update",
-                            {
-                                "sensor_name": sensor.name,
-                                "sensor_index": i,
-                                "sensor_type": sensor.sensor_type,
-                                "value": 1 if new_state else 0,
-                                "event": event,
-                                "timestamp": datetime.now().isoformat(),
-                                "all_sensors": self.get_sensor_data(),
-                            },
-                        )
-
+                    # Standard Sensors (Motion/Door)
+                    GPIO.setup(s["pin"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
             except Exception as e:
-                logger.error(f"Error reading sensor {sensor.name}: {e}")
+                logger.error(f"GPIO Setup Error Pin {s['pin']}: {e}")
 
-        return state_changed
+    def set_relay(self, state: bool):
+        """
+        Controls the 5V Relay.
+        state: True for ON (High), False for OFF (Low)
+        """
+        with self._lock:
+            self.relay_state = state
+            GPIO.output(self.relay_pin, GPIO.HIGH if state else GPIO.LOW)
 
-    def get_sensor_data(self) -> List[Dict[str, Any]]:
-        """Get current sensor data"""
-        data = []
-
-        for i, sensor in enumerate(self.sensors):
-            last_activity = self.last_activity.get(sensor.name)
-
-            # Determine status based on sensor type
-            if sensor.sensor_type == "motion":
-                status = "Motion Detected" if self.sensor_states[i] else "No Motion"
-            elif sensor.sensor_type == "door":
-                status = "Door Open" if self.sensor_states[i] else "Door Closed"
-            else:
-                status = "Active" if self.sensor_states[i] else "Inactive"
-
-            data.append(
+            # Optional: Emit socket event so UI updates immediately
+            self.socketio.emit(
+                "relay_event",
                 {
-                    "name": sensor.name,
-                    "type": sensor.sensor_type,
-                    "value": 1 if self.sensor_states[i] else 0,
-                    "gpio_pin": sensor.pin,
-                    "status": status,
-                    "last_activity": (
-                        last_activity.isoformat() if last_activity else None
-                    ),
-                }
+                    "pin": self.relay_pin,
+                    "state": "ON" if state else "OFF",
+                    "timestamp": datetime.now().isoformat(),
+                },
             )
 
-        return data
+            logger.info(f"Relay on Pin {self.relay_pin} set to {state}")
+            return self.relay_state
 
-    def get_frequency_data(self, hours: int = 24, interval_minutes: int = 30) -> Dict[str, Any]:
-        """Get frequency-based activity data for graphing using ISO timestamps"""
-        try:
-            if not os.path.exists(self.log_file):
-                return {
-                    "sensors": {},
-                    "timestamps": [],
-                    "interval_minutes": interval_minutes,
-                    "total_intervals": 0,
-                }
-
-            local_now = datetime.now().astimezone()  # include timezone info
-            cutoff_time = local_now - timedelta(hours=hours)
-
-            df = pd.read_csv(self.log_file)
-            df["timestamp"] = pd.to_datetime(
-                df["timestamp"], format="ISO8601", errors="coerce", utc=True
-            )
-
-            # Convert to local timezone for consistency
-            df["timestamp"] = df["timestamp"].dt.tz_convert(local_now.tzinfo)
-
-            # Convert Python datetime to pandas Timestamp for comparison
-            cutoff_time_pd = pd.Timestamp(cutoff_time)
-            local_now_pd = pd.Timestamp(local_now)
-
-            # Filter valid and recent entries
-            df = df.dropna(subset=["timestamp"])
-            df = df[df["timestamp"] >= cutoff_time_pd]
-            df = df[df["state"] == 1]  # only activations
-
-            # Define intervals
-            current_time = cutoff_time
-            time_intervals = []
-            timestamps = []
-
-            while current_time < local_now:
-                interval_end = current_time + timedelta(minutes=interval_minutes)
-                time_intervals.append(
-                    {"start": current_time, "end": min(interval_end, local_now)}
-                )
-                # Use interval start time as the timestamp for this data point
-                timestamps.append(current_time.isoformat())
-                current_time = interval_end
-
-            # Prepare output
-            sensor_names = [sensor.name for sensor in self.sensors]
-            frequency_data = {sensor: [] for sensor in sensor_names}
-
-            for interval in time_intervals:
-                for sensor_name in sensor_names:
-                    # Convert interval times to pandas Timestamp for comparison
-                    interval_start_pd = pd.Timestamp(interval["start"])
-                    interval_end_pd = pd.Timestamp(interval["end"])
-
-                    count = df[
-                        (df["sensor_name"] == sensor_name)
-                        & (df["timestamp"] >= interval_start_pd)
-                        & (df["timestamp"] < interval_end_pd)
-                    ].shape[0]
-
-                    # Store just the count - timestamps are separate
-                    frequency_data[sensor_name].append(count)
-
-            return {
-                "sensors": frequency_data,
-                "timestamps": timestamps,  # Array of ISO timestamp strings
-                "interval_minutes": interval_minutes,
-                "total_intervals": len(time_intervals),
-                "timezone": str(local_now.tzinfo),
-            }
-
-        except Exception as e:
-            logger.error(f"Error getting frequency data: {e}")
-            return {
-                "sensors": {},
-                "timestamps": [],
-                "interval_minutes": interval_minutes,
-                "total_intervals": 0,
-            }
-
-    def get_activity_data(self, hours: int = 24) -> List[Dict[str, Any]]:
-        """Get activity data for basic activity log using system local time"""
-        try:
-            if not os.path.exists(self.log_file):
-                return []
-
-            # Calculate cutoff time using system local time
-            local_now = datetime.now()
-            cutoff_time = local_now - timedelta(hours=hours)
-
-            df = pd.read_csv(self.log_file)
-            # Convert timestamp to datetime
-            df["timestamp"] = pd.to_datetime(df["timestamp"], format="ISO8601")
-
-            # Filter by time range
-            df = df[df["timestamp"] >= cutoff_time]
-
-            # Convert timestamps to ISO strings for JSON serialization
-            df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%S")
-
-            # Convert to list of dictionaries for JSON serialization
-            return df.to_dict("records")
-
-        except Exception as e:
-            logger.error(f"Error getting activity data: {e}")
-            return []
-
-    def monitor_sensors(self):
-        """Background thread to continuously monitor sensors"""
-        logger.info("Starting sensor monitoring thread...")
-
+    def _monitor_loop(self):
+        logger.info("Starting DB-backed Monitor Loop")
         while self.monitoring:
             try:
-                self.read_sensors()
-                time.sleep(0.1)  # Check sensors every 100ms
+                current_time = datetime.now()
+
+                # We iterate over the CACHE, not the DB (Speed!)
+                with self._lock:
+                    for s in self.sensors_cache:
+                        if s["type"] == "relay":
+                            continue
+                        try:
+                            # Read Hardware
+                            raw_val = GPIO.input(s["pin"])
+                            is_active = raw_val == GPIO.HIGH
+
+                            if is_active != s["current_state"]:
+                                # Debounce
+                                elapsed = (
+                                    current_time - s["last_change"]
+                                ).total_seconds() * 1000
+                                if elapsed > self.debounce_ms:
+                                    self._handle_state_change(
+                                        s, is_active, current_time
+                                    )
+                        except Exception as e:
+                            logger.error(f"Pin Read Error: {e}")
+
+                time.sleep(0.05)
             except Exception as e:
-                logger.error(f"Error in monitoring thread: {e}")
+                logger.error(f"Loop Error: {e}")
                 time.sleep(1)
 
+    def toggle_sensor(self, sensor_id):
+        with self._lock:
+            # Find the sensor in memory cache
+            target = next((s for s in self.sensors_cache if s["id"] == sensor_id), None)
+
+            if not target or target["type"] != "relay":
+                return False, "Invalid sensor or not a relay"
+
+            # Toggle State
+            new_state = not target["current_state"]
+
+            # Hardware Actuation
+            GPIO.output(target["pin"], GPIO.HIGH if new_state else GPIO.LOW)
+
+            # Update Cache
+            target["current_state"] = new_state
+            target["last_change"] = datetime.now()
+
+            # Emit event so Frontend updates the button color immediately
+            self.socketio.emit(
+                "sensor_event",
+                {
+                    "sensor_id": target["id"],
+                    "name": target["name"],
+                    "event": "Relay Toggled",
+                    "value": 1 if new_state else 0,
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
+            return True, new_state
+
+    def _handle_state_change(self, sensor_obj, new_state, timestamp):
+        # Update Cache
+        sensor_obj["current_state"] = new_state
+        sensor_obj["last_change"] = timestamp
+
+        if new_state:
+            self.last_activity_map[sensor_obj["name"]] = timestamp
+
+        # Determine Event Details
+        event_name = ""
+        should_log = False
+
+        if sensor_obj["type"] == "door":
+            event_name = "Door Opened" if new_state else "Door Closed"
+            should_log = True
+        elif sensor_obj["type"] == "motion":
+            if new_state:
+                event_name = "Motion Detected"
+                should_log = True
+            else:
+                event_name = "Motion Cleared"
+                should_log = False  # Don't log clears to DB to save space
+
+        # 1. Write to DB (Requires Context)
+        if should_log:
+            with self.app.app_context():
+                new_event = Event(
+                    sensor_id=sensor_obj["id"],
+                    value=1 if new_state else 0,
+                    event_type=event_name,
+                    timestamp=timestamp,
+                )
+                db.session.add(new_event)
+                db.session.commit()
+
+        # 2. Emit Realtime
+        self.socketio.emit(
+            "sensor_event",
+            {
+                "sensor_id": sensor_obj["id"],
+                "name": sensor_obj["name"],
+                "event": event_name,
+                "value": 1 if new_state else 0,
+                "timestamp": timestamp.isoformat(),
+            },
+        )
+
+    # --- Data Access Methods (Used by API) ---
+
+    def get_sensor_data(self):
+        # Return combination of DB config + Memory state
+        with self._lock:
+            return [
+                {
+                    "id": s["id"],
+                    "name": s["name"],
+                    "type": s["type"],
+                    "value": 1 if s["current_state"] else 0,
+                    "last_activity": self.last_activity_map.get(
+                        s["name"], datetime.min
+                    ).isoformat(),
+                }
+                for s in self.sensors_cache
+            ]
+
+    def add_sensor(self, name, pin, s_type):
+        with self.app.app_context():
+            if Sensor.query.filter_by(pin=pin).first():
+                return False
+
+            s = Sensor(name=name, pin=pin, type=s_type)
+            db.session.add(s)
+            db.session.commit()
+
+            # Refresh Cache
+            self._load_sensors_to_cache()
+            self._setup_gpio()  # Setup new pin
+            return True
+
+    def remove_sensor(self, sensor_id):
+        with self.app.app_context():
+            s = Sensor.query.get(sensor_id)
+            if s:
+                db.session.delete(s)
+                db.session.commit()
+                self._load_sensors_to_cache()
+                return True
+            return False
+
+    def get_frequency_data(self, hours=24, interval_minutes=30):
+        with self.app.app_context():
+            # 1. Setup Time Range (Standard)
+            end_time = datetime.now()
+            delta_min = end_time.minute % interval_minutes
+            end_time = end_time - timedelta(
+                minutes=delta_min,
+                seconds=end_time.second,
+                microseconds=end_time.microsecond,
+            )
+            start_time = end_time - timedelta(hours=hours)
+
+            timestamps = []
+            current = start_time
+            while current <= end_time:
+                timestamps.append(current)
+                current += timedelta(minutes=interval_minutes)
+
+            # 2. Fetch All Events (Ordered by Time is Critical here)
+            events = (
+                db.session.query(Event.sensor_id, Event.timestamp, Event.value)
+                .filter(Event.timestamp >= start_time)
+                .filter(Event.timestamp <= end_time)
+                .order_by(Event.timestamp.asc())
+                .all()
+            )
+
+            sensors = Sensor.query.all()
+            sensor_map = {s.id: s for s in sensors}
+
+            results = {}
+
+            # 3. Setup State Tracker
+            # This dictionary will store the last known value (0 or 1) for each sensor
+            # Format: { "Front Door": 1, "Back Door": 0 }
+            last_states = {}
+
+            # Initialize result lists
+            for s in sensors:
+                if "door" not in (s.type or "motion").lower():
+                    results[s.name] = [0] * len(timestamps)
+                else:
+                    results[s.name] = []
+
+            start_ts = start_time.timestamp()
+            interval_seconds = interval_minutes * 60
+
+            for sensor_id, evt_time, evt_value in events:
+                if sensor_id not in sensor_map:
+                    continue
+
+                sensor = sensor_map[sensor_id]
+                s_type = (sensor.type or "motion").lower()
+
+                # --- DOORS: Deduplication Logic ---
+                if "door" in s_type or "contact" in s_type:
+
+                    # Check what the previous value for THIS sensor was
+                    prev_val = last_states.get(sensor.name)
+
+                    # ONLY add if the value has changed (or if it's the first time we see it)
+                    if evt_value != prev_val:
+                        results[sensor.name].append(
+                            {
+                                "x": evt_time.isoformat(),
+                                "y": 1,
+                                "state": "open" if evt_value == 1 else "closed",
+                            }
+                        )
+
+                        # Update the tracker with the new current value
+                        last_states[sensor.name] = evt_value
+
+                # --- MOTION: Standard Binning ---
+                else:
+                    if evt_value == 1:
+                        evt_ts = evt_time.timestamp()
+                        index = int((evt_ts - start_ts) / interval_seconds)
+                        if 0 <= index < len(timestamps):
+                            results[sensor.name][index] += 1
+
+            return {
+                "sensors": results,
+                "timestamps": [t.isoformat() for t in timestamps],
+                "interval_minutes": interval_minutes,
+                "total_intervals": len(timestamps),
+            }
+
+    def get_activity_data(self, hours=24):
+        with self.app.app_context():
+            cutoff = datetime.now() - timedelta(hours=hours)
+            # SQL Query is much faster than Pandas CSV read
+            events = (
+                Event.query.filter(Event.timestamp >= cutoff)
+                .order_by(Event.timestamp.desc())
+                .all()
+            )
+            return [e.to_dict() for e in events]
+
     def cleanup(self):
-        """Clean up GPIO resources"""
-        try:
-            self.monitoring = False
-            GPIO.cleanup()
-            logger.info("GPIO cleanup completed")
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+        self.monitoring = False
+        GPIO.cleanup()

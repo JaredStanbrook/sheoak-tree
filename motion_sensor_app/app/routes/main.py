@@ -1,31 +1,19 @@
-"""
-Main routes
-"""
-
-from flask import Flask, render_template, jsonify, send_file, send_from_directory, request, Blueprint, current_app
-from flask_socketio import SocketIO, emit
-import RPi.GPIO as GPIO
-import json
-import time
-import threading
-import logging
-import csv
 import os
-from datetime import datetime, timedelta
-from dataclasses import dataclass
-from typing import List, Dict, Any
-from app import socketio, logger
-
+from datetime import datetime
+from functools import wraps
+from flask import Blueprint, render_template, jsonify, send_file, current_app
+from flask_socketio import emit
+from app.extensions import socketio
+from app.services.manager import get_services
 
 bp = Blueprint("main", __name__)
+logger = current_app.logger if current_app else None
 
 
 def require_motion_app(f):
-    """Decorator to ensure motion_app is available"""
-
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not hasattr(current_app, "motion_app") or current_app.motion_app is None:
+        if not get_services().get_motion_app():
             return jsonify({"error": "Motion sensor service not available"}), 503
         return f(*args, **kwargs)
 
@@ -34,73 +22,80 @@ def require_motion_app(f):
 
 @bp.route("/")
 def index():
-    """Main page"""
     return render_template("index.html")
 
 
 @bp.route("/download/activity")
+@require_motion_app
 def download_activity():
-    """Download complete activity log as CSV"""
-    if os.path.exists(current_app.motion_app.log_file):
-        return send_file(
-            current_app.motion_app.log_file,
-            as_attachment=True,
-            download_name=f'sensor_activity_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv',
-        )
-    else:
-        return jsonify({"error": "Activity log file not found"}), 404
+    app_svc = get_services().get_motion_app()
+    if os.path.exists(app_svc.log_file):
+        filename = f'sensor_activity_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        return send_file(app_svc.log_file, as_attachment=True, download_name=filename)
+    return jsonify({"error": "Activity log file not found"}), 404
+
+
+# --- SocketIO Handlers ---
 
 
 @socketio.on("connect")
 def handle_connect():
-    """Handle client connection"""
-    if not hasattr(current_app, "motion_app") or current_app.motion_app is None:
-        logger.warning("Client connected but motion_app not available")
+    app_svc = get_services().get_motion_app()
+    if not app_svc:
         emit("error", {"message": "Sensor service not available"})
         return False
 
-    logger.info("Client connected")
     emit(
         "sensor_update",
         {
-            "all_sensors": current_app.motion_app.get_sensor_data(),
+            "all_sensors": app_svc.get_sensor_data(),
             "timestamp": datetime.now().isoformat(),
         },
     )
 
+
 @socketio.on("disconnect")
 def handle_disconnect():
-    """Handle client disconnection"""
-    logger.info("Client disconnected")
+    pass
 
 
 @socketio.on("request_activity_data")
 def handle_activity_request(data):
-    """Handle request for activity data"""
-    hours = data.get("hours", 24)
-    activity_data = current_app.motion_app.get_activity_data(hours)
-    emit(
-        "activity_data",
-        {
-            "activity": activity_data,
-            "hours": hours,
-            "timestamp": datetime.now().isoformat(),
-        },
-    )
+    app_svc = get_services().get_motion_app()
+    if app_svc:
+        hours = data.get("hours", 24)
+        emit(
+            "activity_data",
+            {
+                "activity": app_svc.get_activity_data(hours),
+                "hours": hours,
+                "timestamp": datetime.now().isoformat(),
+            },
+        )
 
 
 @socketio.on("request_frequency_data")
 def handle_frequency_request(data):
-    """Handle request for frequency data"""
-    hours = data.get("hours", 24)
-    interval = data.get("interval", 30)
-    frequency_data = current_app.motion_app.get_frequency_data(hours, interval)
-    emit(
-        "frequency_data",
-        {
-            "frequency": frequency_data,
-            "hours": hours,
-            "interval": interval,
-            "timestamp": datetime.now().isoformat(),
-        },
-    )
+    """
+    Handle request for frequency data (for the Graph tab).
+    Calculates activations per time interval using SQL queries.
+    """
+    app_svc = get_services().get_motion_app()
+
+    if app_svc:
+        hours = int(data.get("hours", 24))
+        interval = int(data.get("interval", 30))
+
+        result = app_svc.get_frequency_data(hours, interval)
+
+        emit(
+            "frequency_data",
+            {
+                "frequency": result,
+                "hours": hours,
+                "interval": interval,
+                "timestamp": datetime.now().isoformat(),
+            },
+        )
+    else:
+        emit("error", {"message": "Sensor service not initialized"})
