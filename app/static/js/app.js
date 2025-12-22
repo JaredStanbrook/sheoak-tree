@@ -575,22 +575,56 @@ class PresenceController {
                     const lastSeen = new Date(device.last_seen).toLocaleString(CONFIG.locale);
                     const statusClass = device.is_home ? 'online' : 'offline';
 
-                    // SAFE ESCAPING HERE:
+                    // Privacy Shield Icon if MAC is randomized
+                    const privacyIcon = device.is_randomized_mac
+                        ? '<span title="Private Wi-Fi Address (Randomized)" style="cursor:help">🛡️</span>'
+                        : '';
+
+                    // Vendor Text (e.g. "Apple")
+                    const vendorTxt = device.vendor ? `<span class="badge-gray">${device.vendor}</span>` : '';
+
+                    // Hostname (e.g. "Kaias-iPhone")
+                    const hostnameTxt = device.hostname
+                        ? `<div style="color:var(--color-primary); font-size:0.85rem;">${Utils.escape(device.hostname)}</div>`
+                        : '<span style="opacity:0.3">-</span>';
+
+                    // Safe Escaping
                     const safeName = Utils.escape(device.name);
                     const safeOwner = Utils.escape(device.owner || '');
 
                     tr.innerHTML = `
-                        <td><div class="status-dot ${statusClass}"></div></td>
-                        <td style="font-weight: 600; color: var(--color-text);">${device.name}</td> <td style="color: var(--color-text-muted);">${device.owner || '<em style="opacity:0.5">Unassigned</em>'}</td>
-                        <td class="mono" style="font-size: 0.85rem;">${device.mac_address}</td>
-                        <td style="font-size: 0.85rem; color: var(--color-text-muted);">${lastSeen}</td>
-                        <td>
-                            <button class="btn btn-small btn-secondary"
-                                onclick="app.presence.openEditModal(${device.id}, '${safeName}', '${safeOwner}', ${device.track_presence})">
-                                Edit
-                            </button>
-                        </td>
-                    `;
+        <td>
+            <div class="status-dot ${statusClass}"></div>
+        </td>
+
+        <td>
+            <div style="font-weight: 600; color: var(--color-text);">${device.name}</div>
+            <div style="font-size: 0.8rem; color: var(--color-text-muted);">${safeOwner || 'Unassigned'}</div>
+        </td>
+
+        <td>
+            ${vendorTxt}
+            <div class="mono" style="font-size: 0.75rem; margin-top:4px; opacity:0.7;">${device.last_ip || 'No IP'}</div>
+        </td>
+
+        <td>
+            ${hostnameTxt}
+            <div class="mono" style="font-size: 0.75rem; opacity: 0.6; display:flex; gap:6px;">
+                ${device.mac_address} ${privacyIcon}
+            </div>
+        </td>
+
+        <td style="font-size: 0.85rem; color: var(--color-text-muted);">
+            ${lastSeen}
+        </td>
+
+        <td>
+            <button class="btn btn-small btn-secondary"
+                onclick="app.presence.openEditModal(${device.id}, '${safeName}', '${safeOwner}', ${device.track_presence})">
+                Edit
+            </button>
+        </td>
+    `;
                     this.elements.tableBody.appendChild(tr);
                 });
             }

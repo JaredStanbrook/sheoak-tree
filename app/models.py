@@ -40,20 +40,23 @@ class Event(db.Model):
 
 
 class Device(db.Model):
-    """Represents a device (phone, laptop) that can be tracked via network presence"""
-
     id = db.Column(db.Integer, primary_key=True)
-    mac_address = db.Column(
-        db.String(17), unique=True, nullable=False
-    )  # Format: AA:BB:CC:DD:EE:FF
-    name = db.Column(db.String(64), nullable=False)  # e.g., "Jared's iPhone"
-    owner = db.Column(db.String(64))  # e.g., "Jared"
-    is_home = db.Column(db.Boolean, default=False)
-    last_seen = db.Column(db.DateTime)
-    track_presence = db.Column(db.Boolean, default=False)
+    mac_address = db.Column(db.String(17), unique=True, nullable=False)
 
-    # Backref allows us to get all presence events for a device: device.presence_events
-    presence_events = db.relationship("PresenceEvent", backref="device", lazy="dynamic")
+    # Identification
+    name = db.Column(db.String(64), default="Unknown Device")
+    owner = db.Column(db.String(64))
+    hostname = db.Column(db.String(128))  # NEW: Scanned Hostname (e.g., 'Kaias-iPhone')
+    vendor = db.Column(db.String(64))  # NEW: Manufacturer (e.g., 'Apple')
+
+    # Settings
+    track_presence = db.Column(db.Boolean, default=False)
+    is_randomized_mac = db.Column(db.Boolean, default=False)  # NEW
+
+    # State
+    is_home = db.Column(db.Boolean, default=False)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    last_ip = db.Column(db.String(15))  # NEW: Helps correlation
 
     def to_dict(self):
         return {
@@ -61,25 +64,23 @@ class Device(db.Model):
             "mac_address": self.mac_address,
             "name": self.name,
             "owner": self.owner,
+            "hostname": self.hostname,
+            "vendor": self.vendor,
             "is_home": self.is_home,
-            "last_seen": self.last_seen.isoformat() if self.last_seen else None,
             "track_presence": self.track_presence,
+            "last_seen": self.last_seen.isoformat() if self.last_seen else None,
         }
 
 
 class PresenceEvent(db.Model):
-    """Logs presence changes (arrivals/departures)"""
-
     id = db.Column(db.Integer, primary_key=True)
     device_id = db.Column(db.Integer, db.ForeignKey("device.id"), nullable=False)
-    event_type = db.Column(db.String(20), nullable=False)  # "arrived" or "left"
-    timestamp = db.Column(db.DateTime, default=datetime.now, index=True)
+    event_type = db.Column(db.String(20))  # 'arrived', 'left'
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
-            "id": self.id,
-            "device_name": self.device.name if self.device else "Unknown",
-            "device_owner": self.device.owner if self.device else None,
-            "event_type": self.event_type,
+            "event": self.event_type,
             "timestamp": self.timestamp.isoformat(),
+            "device_id": self.device_id,
         }

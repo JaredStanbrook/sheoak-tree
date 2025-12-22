@@ -1016,6 +1016,17 @@ input[type="number"] {
     font-size: 0.8rem;
 }
 
+.badge-gray {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-text-muted);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .people-chips {
     display: flex;
     gap: 10px;
