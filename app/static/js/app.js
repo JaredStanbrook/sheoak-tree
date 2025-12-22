@@ -67,7 +67,12 @@ const Utils = {
             console.error("API Error:", err);
             throw err;
         }
-    }
+    },
+    escape(str) {
+        if (!str) return '';
+        // Replaces single quotes with an escaped version
+        return String(str).replace(/'/g, "\\'");
+    },
 };
 
 /**
@@ -510,6 +515,135 @@ class ChartController {
     }
 }
 
+
+class PresenceController {
+    constructor() {
+        this.elements = {
+            widgetList: document.getElementById('people-list'),
+            widgetCount: document.getElementById('home-count'),
+            tableBody: document.getElementById('device-list-body'),
+            modal: document.getElementById('editDeviceModal'),
+            inputs: {
+                id: document.getElementById('edit-device-id'),
+                name: document.getElementById('edit-device-name'),
+                owner: document.getElementById('edit-device-owner')
+            }
+        };
+    }
+
+    async loadWhoIsHome() {
+        if (!this.elements.widgetList) return;
+        try {
+            const data = await Utils.fetchJson('/api/presence/who-is-home');
+            if (data.success && this.elements.widgetCount) {
+                this.elements.widgetCount.textContent = data.count;
+                this.elements.widgetList.innerHTML = '';
+
+                if (data.count === 0) {
+                    this.elements.widgetList.innerHTML = '<span class="text-muted">No one is home.</span>';
+                    return;
+                }
+
+                // Show Named People
+                data.people_home.forEach(person => {
+                    if (person === 'Unknown') return;
+                    const chip = document.createElement('span');
+                    chip.className = 'person-chip home';
+                    chip.innerHTML = `👤 ${person}`;
+                    this.elements.widgetList.appendChild(chip);
+                });
+
+                // Fallback if only Unknown devices are home
+                if (this.elements.widgetList.children.length === 0 && data.count > 0) {
+                    this.elements.widgetList.innerHTML = `<span class="person-chip home">${data.count} Unknown Device(s)</span>`;
+                }
+            }
+        } catch (e) { console.error("Presence Widget Error:", e); }
+    }
+
+    async loadDevices() {
+        if (!this.elements.tableBody) return;
+        this.elements.tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Loading...</td></tr>';
+
+        try {
+            const data = await Utils.fetchJson('/api/presence/devices');
+            this.elements.tableBody.innerHTML = '';
+
+            if (data.success) {
+                data.devices.forEach(device => {
+                    const tr = document.createElement('tr');
+                    const lastSeen = new Date(device.last_seen).toLocaleString(CONFIG.locale);
+                    const statusClass = device.is_home ? 'online' : 'offline';
+
+                    // SAFE ESCAPING HERE:
+                    const safeName = Utils.escape(device.name);
+                    const safeOwner = Utils.escape(device.owner || '');
+
+                    tr.innerHTML = `
+                        <td><div class="status-dot ${statusClass}"></div></td>
+                        <td style="font-weight: 600; color: var(--color-text);">${device.name}</td> <td style="color: var(--color-text-muted);">${device.owner || '<em style="opacity:0.5">Unassigned</em>'}</td>
+                        <td class="mono" style="font-size: 0.85rem;">${device.mac_address}</td>
+                        <td style="font-size: 0.85rem; color: var(--color-text-muted);">${lastSeen}</td>
+                        <td>
+                            <button class="btn btn-small btn-secondary"
+                                onclick="app.presence.openEditModal(${device.id}, '${safeName}', '${safeOwner}', ${device.track_presence})">
+                                Edit
+                            </button>
+                        </td>
+                    `;
+                    this.elements.tableBody.appendChild(tr);
+                });
+            }
+        } catch (e) {
+            this.elements.tableBody.innerHTML = `<tr><td colspan="6" class="text-warning">Error: ${e.message}</td></tr>`;
+        }
+    }
+
+    openEditModal(id, name, owner, track_presence) {
+        this.elements.inputs.id.value = id;
+        this.elements.inputs.name.value = name;
+        this.elements.inputs.owner.value = owner;
+        document.getElementById('edit-device-track').checked = (track_presence === true);
+        this.elements.modal.classList.add('active');
+    }
+
+    async submitUpdate() {
+        const id = this.elements.inputs.id.value;
+        const name = this.elements.inputs.name.value;
+        const owner = this.elements.inputs.owner.value;
+        const track_presence = document.getElementById('edit-device-track').checked;
+        const btn = document.querySelector('#editDeviceModal .btn-primary');
+
+        btn.textContent = 'Saving...';
+        try {
+            const res = await Utils.fetchJson(`/api/presence/devices/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, owner, track_presence })
+            });
+            if (res.success) {
+                this.elements.modal.classList.remove('active');
+                this.loadDevices();
+                this.loadWhoIsHome();
+            } else {
+                alert("Error: " + res.error);
+            }
+        } catch (e) { alert("Failed: " + e); }
+        finally { btn.textContent = 'Save'; }
+    }
+
+    async deleteDevice() {
+        const id = this.elements.inputs.id.value;
+        if (!confirm("Stop monitoring this device? It will reappear if detected again.")) return;
+        try {
+            const res = await Utils.fetchJson(`/api/presence/devices/${id}`, { method: 'DELETE' });
+            if (res.success) {
+                this.elements.modal.classList.remove('active');
+                this.loadDevices();
+            }
+        } catch (e) { alert("Delete failed"); }
+    }
+}
 /**
  * Controller: Sequences (Review Tab)
  */
@@ -739,6 +873,7 @@ class App {
         // Modules
         this.dashboard = new DashboardController();
         this.sequences = new SequenceController();
+        this.presence = new PresenceController();
         this.socket = io({ path: CONFIG.socketPath });
         this.charts = new ChartController(this.socket);
 
@@ -783,6 +918,13 @@ class App {
         this.socket.on('frequency_data', (data) => {
             if (data.frequency) this.charts.update(data.frequency);
         });
+        this.socket.on('presence_update', (data) => {
+            console.log("Presence Update:", data);
+            this.presence.loadWhoIsHome();
+            if (document.getElementById('presence-tab').classList.contains('active')) {
+                this.presence.loadDevices();
+            }
+        });
     }
 
     _bindGlobalEvents() {
@@ -804,9 +946,9 @@ class App {
                     this.charts.requestData();
                 }, 50);
             }
-            if (tabName === 'review') {
-                this.sequences.loadData();
-            }
+            if (tabName === 'review') this.sequences.loadData();
+            if (tabName === 'presence') this.presence.loadDevices();
+            if (tabName === 'live') this.presence.loadWhoIsHome();
         };
 
         // Expose helpers for HTML onclick events
@@ -814,10 +956,14 @@ class App {
         window.processSequences = (inc) => this.sequences.process(inc);
         window.loadProcessorState = () => this.sequences.loadData();
         window.closeSequenceModal = () => this.sequences.closeModal();
+        window.loadPresenceDevices = () => this.presence.loadDevices();
+        window.submitDeviceUpdate = () => this.presence.submitUpdate();
+        window.deleteDevice = () => this.presence.deleteDevice();
     }
 
     async loadInitialData() {
         await this.refreshGrid();
+        await this.presence.loadWhoIsHome();
     }
 
     async refreshGrid() {

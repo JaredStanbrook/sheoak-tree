@@ -6,6 +6,9 @@
         <button id="live-tab" class="tab-button active" onclick="switchTab('live')">
             Live
         </button>
+        <button id="presence-tab" class="tab-button" onclick="switchTab('presence')">
+            Presence
+        </button>
         <button id="graphs-tab" class="tab-button" onclick="switchTab('graphs')">
             Frequency
         </button>
@@ -19,7 +22,15 @@
 </header>
 
 <section id="live-content" class="tab-content active">
-
+    <div id="presence-widget" class="presence-widget card">
+        <div class="widget-header">
+            <h4>Who is Home</h4>
+            <span id="home-count" class="badge">0</span>
+        </div>
+        <div id="people-list" class="people-chips">
+            <span class="text-muted">Loading...</span>
+        </div>
+    </div>
     <div id="system-summary" class="system-status-bar">
     </div>
 
@@ -27,6 +38,31 @@
         <div class="loading-state">
             <div class="spinner"></div>
             <p>Connecting to control panel...</p>
+        </div>
+    </div>
+</section>
+
+<section id="presence-content" class="tab-content">
+    <div class="card">
+        <div class="card-header">
+            <h3>Device Management</h3>
+            <button class="btn btn-small btn-primary" onclick="loadPresenceDevices()">Refresh</button>
+        </div>
+        <div class="table-responsive">
+            <table class="device-table">
+                <thead>
+                    <tr>
+                        <th width="50">Status</th>
+                        <th>Device Name</th>
+                        <th>Owner</th>
+                        <th>MAC Address</th>
+                        <th>Last Seen</th>
+                        <th width="100">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="device-list-body">
+                </tbody>
+            </table>
         </div>
     </div>
 </section>
@@ -146,6 +182,44 @@
             <button class="close-btn" onclick="closeSequenceModal()">&times;</button>
         </div>
         <div id="sequenceDetail" class="modal-body">
+        </div>
+    </div>
+</div>
+<div id="editDeviceModal" class="modal-overlay">
+    <div class="modal-card small-modal">
+        <div class="modal-header">
+            <h2>Edit Device</h2>
+            <button class="close-btn"
+                onclick="document.getElementById('editDeviceModal').classList.remove('active')">&times;</button>
+        </div>
+        <div class="modal-body form-grid">
+            <input type="hidden" id="edit-device-id">
+
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="edit-device-name" placeholder="e.g. Jared's iPhone">
+            </div>
+
+            <div class="form-group">
+                <label>Owner</label>
+                <input type="text" id="edit-device-owner" placeholder="e.g. Jared">
+            </div>
+
+            <div class="form-group checkbox-group"
+                style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                <input type="checkbox" id="edit-device-track" style="width: auto; transform: scale(1.2);">
+                <label for="edit-device-track" style="margin:0; cursor: pointer;">
+                    Track Presence?
+                    <span style="display:block; font-size: 0.75rem; opacity: 0.6; font-weight: normal;">
+                        If unchecked, this device won't mark the owner as "Home".
+                    </span>
+                </label>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="submitDeviceUpdate()">Save</button>
+                <button class="btn btn-danger" onclick="deleteDevice()">Delete Device</button>
+            </div>
         </div>
     </div>
 </div>
