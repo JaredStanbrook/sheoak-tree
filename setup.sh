@@ -2,7 +2,7 @@
 # Setup script for the app environment
 # Works on macOS, Linux, and WSL
 
-echo "Setting up Motion Sensor App environment..."
+echo "Setting up Oak Tree environment..."
 
 # Check if Python3 is available
 if ! command -v python3 &> /dev/null; then

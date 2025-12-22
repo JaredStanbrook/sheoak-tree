@@ -23,33 +23,35 @@ class PresenceMonitor:
         self.scan_interval = scan_interval
         self.socketio = socketio
         self._lock = threading.Lock()
-        
+
         # Runtime state
         self.monitoring = True
         self.last_scan_time = None
-        
+
         # Start background monitoring thread
         self.monitor_thread = threading.Thread(target=self._scan_loop, daemon=True)
         self.monitor_thread.start()
-        
-        logger.info(f"PresenceMonitor initialized - scanning {target_ip} every {scan_interval}s")
+
+        logger.info(
+            f"PresenceMonitor initialized - scanning {target_ip} every {scan_interval}s"
+        )
 
     def _scan_loop(self):
         """Background thread that periodically scans for active devices"""
         logger.info("Starting Presence Monitor scan loop")
-        
+
         while self.monitoring:
             try:
                 self.last_scan_time = datetime.now()
                 active_macs = self.get_active_macs()
-                
+
                 if active_macs is not None:
                     self._process_presence(active_macs)
                 else:
                     logger.warning("Failed to retrieve active MACs from router")
-                
+
                 time.sleep(self.scan_interval)
-                
+
             except Exception as e:
                 logger.error(f"Error in presence scan loop: {e}")
                 time.sleep(self.scan_interval)
@@ -58,46 +60,46 @@ class PresenceMonitor:
         """
         Query router via SNMP to get list of active MAC addresses.
         Uses OID 1.3.6.1.2.1.4.22.1.2 (ipNetToMediaPhysAddress) from the ARP table.
-        
+
         Returns:
             set: Set of MAC addresses in format 'AA:BB:CC:DD:EE:FF', or None on error
         """
         try:
             active_macs = set()
-            
+
             # SNMP Walk to get ARP table entries
             # OID 1.3.6.1.2.1.4.22.1.2 = ipNetToMediaPhysAddress (MAC addresses in ARP table)
-            for (errorIndication, errorStatus, errorIndex, varBinds) in nextCmd(
+            for errorIndication, errorStatus, errorIndex, varBinds in nextCmd(
                 SnmpEngine(),
                 CommunityData(self.community),
                 UdpTransportTarget((self.target_ip, 161), timeout=2, retries=1),
                 ContextData(),
-                ObjectType(ObjectIdentity('1.3.6.1.2.1.4.22.1.2')),
-                lexicographicMode=False
+                ObjectType(ObjectIdentity("1.3.6.1.2.1.4.22.1.2")),
+                lexicographicMode=False,
             ):
-                
+
                 if errorIndication:
                     logger.error(f"SNMP error: {errorIndication}")
                     return None
-                    
+
                 elif errorStatus:
                     logger.error(f"SNMP error: {errorStatus.prettyPrint()}")
                     return None
-                    
+
                 else:
                     for varBind in varBinds:
                         # Extract MAC address from the response
                         # The value is typically returned as a hex string or byte string
                         mac_bytes = varBind[1].asNumbers()
-                        
+
                         # Convert to standard MAC format (AA:BB:CC:DD:EE:FF)
                         if len(mac_bytes) == 6:
-                            mac_address = ':'.join([f'{b:02X}' for b in mac_bytes])
+                            mac_address = ":".join([f"{b:02X}" for b in mac_bytes])
                             active_macs.add(mac_address)
-            
+
             logger.info(f"Found {len(active_macs)} active devices on network")
             return active_macs
-            
+
         except Exception as e:
             logger.error(f"Error querying SNMP: {e}")
             return None
@@ -105,7 +107,7 @@ class PresenceMonitor:
     def _process_presence(self, active_macs):
         """
         Compare active MACs with database and update presence status.
-        
+
         Args:
             active_macs (set): Set of MAC addresses currently active on network
         """
@@ -113,20 +115,20 @@ class PresenceMonitor:
             try:
                 # Get all registered devices
                 devices = Device.query.all()
-                
+
                 for device in devices:
                     was_home = device.is_home
                     is_now_home = device.mac_address in active_macs
-                    
+
                     # State change detected
                     if was_home != is_now_home:
                         self._handle_presence_change(device, is_now_home)
-                    
+
                     # Update last_seen for devices that are present
                     elif is_now_home:
                         device.last_seen = datetime.now()
                         db.session.commit()
-                
+
             except Exception as e:
                 logger.error(f"Error processing presence: {e}")
                 db.session.rollback()
@@ -134,38 +136,39 @@ class PresenceMonitor:
     def _handle_presence_change(self, device, is_now_home):
         """
         Handle a device arriving or leaving.
-        
+
         Args:
             device (Device): The device that changed state
             is_now_home (bool): True if device arrived, False if left
         """
         now = datetime.now()
         event_type = "arrived" if is_now_home else "left"
-        
+
         # Update device status
         device.is_home = is_now_home
         device.last_seen = now if is_now_home else device.last_seen
-        
+
         # Log the event
         presence_event = PresenceEvent(
-            device_id=device.id,
-            event_type=event_type,
-            timestamp=now
+            device_id=device.id, event_type=event_type, timestamp=now
         )
-        
+
         db.session.add(presence_event)
         db.session.commit()
-        
+
         # Emit real-time update via SocketIO
-        self.socketio.emit('presence_update', {
-            'device_id': device.id,
-            'device_name': device.name,
-            'owner': device.owner,
-            'event_type': event_type,
-            'is_home': is_now_home,
-            'timestamp': now.isoformat()
-        })
-        
+        self.socketio.emit(
+            "presence_update",
+            {
+                "device_id": device.id,
+                "device_name": device.name,
+                "owner": device.owner,
+                "event_type": event_type,
+                "is_home": is_now_home,
+                "timestamp": now.isoformat(),
+            },
+        )
+
         logger.info(f"{device.name} ({device.owner}) has {event_type}")
 
     # --- API Helper Methods ---
@@ -179,12 +182,12 @@ class PresenceMonitor:
     def add_device(self, mac_address, name, owner=None):
         """
         Register a new device to monitor.
-        
+
         Args:
             mac_address (str): MAC address in format AA:BB:CC:DD:EE:FF
             name (str): Device name (e.g., "Jared's iPhone")
             owner (str): Owner name (e.g., "Jared")
-            
+
         Returns:
             tuple: (success: bool, message: str)
         """
@@ -194,21 +197,21 @@ class PresenceMonitor:
                 existing = Device.query.filter_by(mac_address=mac_address).first()
                 if existing:
                     return False, "Device with this MAC address already exists"
-                
+
                 # Create new device
                 device = Device(
                     mac_address=mac_address.upper(),
                     name=name,
                     owner=owner,
-                    is_home=False
+                    is_home=False,
                 )
-                
+
                 db.session.add(device)
                 db.session.commit()
-                
+
                 logger.info(f"Added new device: {name} ({mac_address})")
                 return True, "Device added successfully"
-                
+
             except Exception as e:
                 db.session.rollback()
                 logger.error(f"Error adding device: {e}")
@@ -217,10 +220,10 @@ class PresenceMonitor:
     def remove_device(self, device_id):
         """
         Remove a device from monitoring.
-        
+
         Args:
             device_id (int): Device ID to remove
-            
+
         Returns:
             tuple: (success: bool, message: str)
         """
@@ -229,13 +232,13 @@ class PresenceMonitor:
                 device = Device.query.get(device_id)
                 if not device:
                     return False, "Device not found"
-                
+
                 db.session.delete(device)
                 db.session.commit()
-                
+
                 logger.info(f"Removed device: {device.name}")
                 return True, "Device removed successfully"
-                
+
             except Exception as e:
                 db.session.rollback()
                 logger.error(f"Error removing device: {e}")
@@ -244,12 +247,12 @@ class PresenceMonitor:
     def update_device(self, device_id, name=None, owner=None):
         """
         Update device information.
-        
+
         Args:
             device_id (int): Device ID to update
             name (str, optional): New name
             owner (str, optional): New owner
-            
+
         Returns:
             tuple: (success: bool, message: str)
         """
@@ -258,17 +261,17 @@ class PresenceMonitor:
                 device = Device.query.get(device_id)
                 if not device:
                     return False, "Device not found"
-                
+
                 if name:
                     device.name = name
                 if owner:
                     device.owner = owner
-                
+
                 db.session.commit()
-                
+
                 logger.info(f"Updated device: {device.name}")
                 return True, "Device updated successfully"
-                
+
             except Exception as e:
                 db.session.rollback()
                 logger.error(f"Error updating device: {e}")
@@ -277,18 +280,17 @@ class PresenceMonitor:
     def get_presence_history(self, hours=24):
         """
         Get presence events for the last N hours.
-        
+
         Args:
             hours (int): Number of hours to look back
-            
+
         Returns:
             list: List of presence event dictionaries
         """
         with self.app.app_context():
             cutoff = datetime.now() - timedelta(hours=hours)
             events = (
-                PresenceEvent.query
-                .filter(PresenceEvent.timestamp >= cutoff)
+                PresenceEvent.query.filter(PresenceEvent.timestamp >= cutoff)
                 .order_by(PresenceEvent.timestamp.desc())
                 .all()
             )
@@ -298,10 +300,12 @@ class PresenceMonitor:
         """Get current monitoring status"""
         with self._lock:
             return {
-                'monitoring': self.monitoring,
-                'target_ip': self.target_ip,
-                'scan_interval': self.scan_interval,
-                'last_scan': self.last_scan_time.isoformat() if self.last_scan_time else None
+                "monitoring": self.monitoring,
+                "target_ip": self.target_ip,
+                "scan_interval": self.scan_interval,
+                "last_scan": (
+                    self.last_scan_time.isoformat() if self.last_scan_time else None
+                ),
             }
 
     def cleanup(self):
