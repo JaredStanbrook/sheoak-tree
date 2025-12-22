@@ -1,7 +1,14 @@
 import os
 from datetime import datetime
 from functools import wraps
-from flask import Blueprint, render_template, jsonify, send_file, current_app
+from flask import (
+    Blueprint,
+    render_template,
+    jsonify,
+    send_file,
+    current_app,
+    send_from_directory,
+)
 from flask_socketio import emit
 from app.extensions import socketio
 from app.services.manager import get_services
@@ -23,6 +30,15 @@ def require_motion_app(f):
 @bp.route("/")
 def index():
     return render_template("index.html")
+
+
+@bp.route("/<filename>.pdf")
+def serve_pdf(filename):
+    """
+    Serves any PDF file located in the static folder
+    via the root URL (e.g., /manual.pdf).
+    """
+    return send_from_directory(current_app.static_folder, f"{filename}.pdf")
 
 
 @bp.route("/download/activity")

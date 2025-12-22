@@ -18,6 +18,13 @@ class Config:
     # SocketIO settings
     SOCKETIO_PATH = "/sheoak/socket.io"
 
+    # --- SNMP Presence Monitoring Settings ---
+    SNMP_TARGET_IP = os.environ.get("SNMP_TARGET_IP", "192.168.1.1")
+    SNMP_COMMUNITY = os.environ.get("SNMP_COMMUNITY", "public")
+    PRESENCE_SCAN_INTERVAL = int(os.environ.get("PRESENCE_SCAN_INTERVAL", 60))
+
+
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
