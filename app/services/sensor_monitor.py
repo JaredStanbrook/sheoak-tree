@@ -1,5 +1,5 @@
 # app/services/sensor_monitor.py
-import RPi.GPIO as GPIO
+
 import time
 import threading
 import logging
@@ -9,6 +9,68 @@ from app.models import Sensor, Event
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
+
+try:
+    # Try to import the real library (Works on Pi)
+    import RPi.GPIO as GPIO
+except (ImportError, RuntimeError):
+    # If it fails (Mac/Windows), use this Mock Class
+    logger.warning("RPi.GPIO not found. Using Mock GPIO for local development.")
+
+    class MockGPIO:
+        """A fake GPIO class that logs actions instead of touching hardware."""
+
+        BCM = "BCM"
+        BOARD = "BOARD"
+        OUT = "OUT"
+        IN = "IN"
+        HIGH = 1
+        LOW = 0
+        RISING = "RISING"
+        FALLING = "FALLING"
+        BOTH = "BOTH"
+        PUD_UP = "PUD_UP"
+        PUD_DOWN = "PUD_DOWN"
+
+        @staticmethod
+        def setwarnings(flag):
+            logger.info(f"[MOCK] Warnings set to: {flag}")
+
+        @staticmethod
+        def setmode(mode):
+            logger.info(f"[MOCK] GPIO Mode set to: {mode}")
+
+        @staticmethod
+        def setup(pin, mode, pull_up_down=None):
+            logger.info(f"[MOCK] Pin {pin} setup as {mode}")
+
+        @staticmethod
+        def output(pin, state):
+            logger.info(f"[MOCK] Pin {pin} set to {'HIGH' if state else 'LOW'}")
+
+        @staticmethod
+        def input(pin):
+            # Simulate a sensor reading (Return 0 or 1)
+            return 0
+
+        @staticmethod
+        def add_event_detect(pin, edge, callback=None, bouncetime=None):
+            logger.info(f"[MOCK] Event listener added to Pin {pin} ({edge})")
+
+        @staticmethod
+        def remove_event_detect(pin):
+            logger.info(f"[MOCK] Event listener removed from Pin {pin}")
+
+        @staticmethod
+        def cleanup(channel=None):
+            # cleanup can sometimes take a specific channel or None
+            if channel:
+                logger.info(f"[MOCK] GPIO Cleanup on channel {channel}")
+            else:
+                logger.info("[MOCK] GPIO Cleanup (All)")
+
+    # Assign the Mock class to the variable 'GPIO'
+    GPIO = MockGPIO
 
 
 class MotionSensorApp:

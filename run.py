@@ -5,7 +5,12 @@ from app import create_app
 from app.extensions import socketio
 from app.services.manager import get_services
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 app = create_app(get_config())
+
 
 def main():
     # Register cleanup for the singleton service manager
@@ -27,6 +32,7 @@ def main():
         use_reloader=debug_mode,
         allow_unsafe_werkzeug=not debug_mode,  # Only needed if not using Gunicorn
     )
+
 
 if __name__ == "__main__":
     main()
