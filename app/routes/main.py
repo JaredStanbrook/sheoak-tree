@@ -27,9 +27,33 @@ def require_motion_app(f):
     return decorated_function
 
 
+# app/routes/main.py
+
+
 @bp.route("/")
 def index():
-    return render_template("index.html")
+    """Live Dashboard"""
+    return render_template("dashboard.html", active_page="live")
+
+
+@bp.route("/presence")
+def presence():
+    """Device Management"""
+    return render_template("presence.html", active_page="presence")
+
+
+@bp.route("/analysis")
+def analysis():
+    """Graphs and Logs"""
+    # Note: You can split Logs to their own page if desired,
+    # but combining Analysis + Logs often makes sense.
+    return render_template("analysis.html", active_page="analysis")
+
+
+@bp.route("/ai")
+def ai_training():
+    """Sequence Review"""
+    return render_template("ai.html", active_page="ai")
 
 
 @bp.route("/<filename>.pdf")

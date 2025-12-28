@@ -1,0 +1,26 @@
+{% extends "base.html" %} {% block content %}
+<header class="dashboard-header">
+  <h2>Live Status</h2>
+</header>
+
+<div id="presence-widget" class="presence-widget card">
+  <div class="widget-header">
+    <h4 class="px-3">Who is Home</h4>
+    <span id="home-count" class="badge">0</span>
+  </div>
+  <div id="people-list" class="people-chips">
+    <span class="text-muted">Loading...</span>
+  </div>
+</div>
+
+<div id="system-summary" class="system-status-bar"></div>
+
+<div id="sensors-grid" class="sensors-grid">
+  <div class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading sensors...</p>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
