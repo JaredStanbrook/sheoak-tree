@@ -30,8 +30,6 @@
       src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.1.0/chartjs-plugin-annotation.min.js"
       defer></script>
 
-    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
-
     {% block head_scripts %}{% endblock %}
   </head>
 
@@ -46,6 +44,30 @@
     {% block navbar %}
     <nav class="main-nav">
       <div class="nav-brand">Sheoak Control</div>
+
+      <div class="nav-links">
+        <a
+          href="{{ url_for('main.index') }}"
+          class="nav-item {{ 'active' if active_page == 'live' else '' }}"
+          >Live</a
+        >
+        <a
+          href="{{ url_for('main.presence') }}"
+          class="nav-item {{ 'active' if active_page == 'presence' else '' }}"
+          >Presence</a
+        >
+        <a
+          href="{{ url_for('main.analysis') }}"
+          class="nav-item {{ 'active' if active_page == 'analysis' else '' }}"
+          >Analysis</a
+        >
+        <a
+          href="{{ url_for('main.ai_training') }}"
+          class="nav-item {{ 'active' if active_page == 'ai' else '' }}"
+          >AI Training</a
+        >
+      </div>
+
       <div class="connection-pill">
         <span class="status-dot connected"></span>
         <span id="connection-text">Connected</span>
