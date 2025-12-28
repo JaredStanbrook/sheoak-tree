@@ -1,14 +1,48 @@
-name: Deploy to Pi
+name: Deploy and Migrate
+
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+
 jobs:
   deploy:
-    runs-on: self-hosted  # <--- This tells it to run ON THE PI
+    runs-on: self-hosted
+    defaults:
+      run:
+        # Run all steps inside the repo folder
+        working-directory: /home/jaredstanbrook/actions-runner/_work/sheoak-tree/sheoak-tree/
+
     steps:
+      # 1. Fetch Code
       - uses: actions/checkout@v3
-      - name: Restart Service
+
+      # 2. Setup Venv & Install Deps
+      - name: Setup Python Environment
         run: |
-          # The repo is already checked out by the step above
-          # You might just need to restart the service
-          sudo systemctl restart sheoaktree.service
+          # Check if venv exists, if not create it
+          if [ ! -d "venv" ]; then
+            echo "Creating new virtual environment..."
+            python3 -m venv venv
+          fi
+
+          # Activate and Install
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 3. Run Migrations (The Smart Part)
+      - name: Run Database Migrations
+        run: |
+          source venv/bin/activate
+
+          # We force the runner to use the PRODUCTION config file.
+          # This ensures 'flask db upgrade' talks to the REAL sqlite file in /sheoak_data
+          # and not a fake empty one in the runner folder.
+          export $(grep -v '^#' /home/jaredstanbrook/sheoak_data/.env | xargs)
+
+          echo "Migrating Database at: $DATABASE_URL"
+          flask db upgrade
+
+      # 4. Restart Service
+      - name: Restart Application
+        run: sudo systemctl restart sheoak-tree.service
