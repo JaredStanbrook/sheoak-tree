@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="dashboard-header">
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <h2>Sensor Configuration</h2>
+        <a href="/" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</header>
+
+<div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="card" style="margin-bottom: 20px; border-left: 4px solid var(--color-primary);">
+        {% for category, message in messages %}
+        <div class="{{ 'text-warning' if category == 'error' else 'text-success' }}" style="padding: 10px;">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <div class="card control-panel" style="margin-bottom: 30px;">
+        <div class="card-header">
+            <h3>
+                {% if edit_sensor %}
+                Edit Sensor: <span style="color: var(--color-primary);">{{ edit_sensor.name }}</span>
+                {% else %}
+                Add New Sensor
+                {% endif %}
+            </h3>
+            {% if edit_sensor %}
+            <a href="{{ url_for('sensors.manage_sensors') }}" class="btn btn-small btn-secondary">Cancel Edit</a>
+            {% endif %}
+        </div>
+
+        <form method="POST"
+            action="{{ url_for('sensors.edit_sensor', sensor_id=edit_sensor.id) if edit_sensor else url_for('sensors.manage_sensors') }}">
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Sensor Name</label>
+                    <input type="text" name="name" placeholder="e.g. Kitchen Motion" required
+                        value="{{ edit_sensor.name if edit_sensor else '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label>GPIO Pin (BCM)</label>
+                    <input type="number" name="pin" placeholder="e.g. 17" required
+                        value="{{ edit_sensor.pin if edit_sensor else '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label>Sensor Type</label>
+                    <select name="type" class="form-select"
+                        style="width: 100%; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: var(--color-text); border-radius: 6px;">
+                        <option value="motion" {{ 'selected' if edit_sensor and edit_sensor.type=='motion' else '' }}>
+                            Motion (PIR)</option>
+                        <option value="door" {{ 'selected' if edit_sensor and edit_sensor.type=='door' else '' }}>Door
+                            Contact</option>
+                        <option value="relay" {{ 'selected' if edit_sensor and edit_sensor.type=='relay' else '' }}>
+                            Relay / Switch</option>
+                    </select>
+                </div>
+
+                <div class="form-group"
+                    style="display: flex; align-items: center; justify-content: flex-start; padding-top: 30px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" name="enabled" id="chk_enabled"
+                            style="width: auto; transform: scale(1.5); cursor: pointer;" {{ 'checked' if (edit_sensor
+                            and edit_sensor.enabled) or not edit_sensor else '' }}>
+                        <label for="chk_enabled" style="margin: 0; cursor: pointer;">Enabled</label>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary full-width">
+                    {{ 'Update Sensor' if edit_sensor else 'Create Sensor' }}
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Existing Sensors</h3>
+        </div>
+        <div class="table-responsive">
+            <table class="device-table">
+                <thead>
+                    <tr>
+                        <th width="50">ID</th>
+                        <th>Name</th>
+                        <th>Pin</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th width="180" class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sensor in sensors %}
+                    <tr
+                        style="{{ 'background: rgba(16, 185, 129, 0.1);' if edit_sensor and edit_sensor.id == sensor.id else '' }}">
+                        <td><span class="mono" style="opacity: 0.5;">#{{ sensor.id }}</span></td>
+                        <td>
+                            <strong>{{ sensor.name }}</strong>
+                        </td>
+                        <td class="mono">{{ sensor.pin }}</td>
+                        <td>
+                            {% if sensor.type == 'motion' %}
+                            <span class="badge-gray">👁️ Motion</span>
+                            {% elif sensor.type == 'door' %}
+                            <span class="badge-gray">🚪 Door</span>
+                            {% elif sensor.type == 'relay' %}
+                            <span class="badge-gray">💡 Relay</span>
+                            {% else %}
+                            {{ sensor.type }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sensor.enabled %}
+                            <span class="text-success">Active</span>
+                            {% else %}
+                            <span class="text-muted">Disabled</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                                <a href="{{ url_for('sensors.edit_sensor', sensor_id=sensor.id) }}"
+                                    class="btn btn-small btn-secondary">
+                                    Edit
+                                </a>
+
+                                <form method="POST" action="{{ url_for('sensors.delete_sensor', sensor_id=sensor.id) }}"
+                                    onsubmit="return confirm('Are you sure you want to delete {{ sensor.name }}?');">
+                                    <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted" style="padding: 20px;">
+                            No sensors configured. Add one above.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

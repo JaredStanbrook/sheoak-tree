@@ -1,0 +1,14 @@
+name: Deploy to Pi
+on:
+  push:
+    branches: [ main ]
+jobs:
+  deploy:
+    runs-on: self-hosted  # <--- This tells it to run ON THE PI
+    steps:
+      - uses: actions/checkout@v3
+      - name: Restart Service
+        run: |
+          # The repo is already checked out by the step above
+          # You might just need to restart the service
+          sudo systemctl restart sheoaktree.service

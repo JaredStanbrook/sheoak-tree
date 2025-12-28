@@ -1,8 +1,9 @@
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, current_app, request, current_app
 from datetime import datetime
 from app.services.manager import get_services
 
 bp = Blueprint("api", __name__)
+logger = current_app.logger if current_app else None
 
 
 @bp.route("/sensors")

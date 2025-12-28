@@ -23,9 +23,11 @@ def create_app(config_class=Config):
     # Register Blueprints
     from app.routes.main import bp as main_bp
     from app.routes.api import bp as api_bp
+    from app.routes.sensors import bp as sensors_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
+    app.register_blueprint(sensors_bp, url_prefix="/sensors")
 
     # Global Error Handlers
     register_error_handlers(app)
