@@ -1,14 +1,17 @@
 # app/config.py
 import os
-basedir = os.path.abspath(os.path.dirname(__file__))
+
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
 
     # Database Configuration
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL"
-    ) or "sqlite:///" + os.path.join(basedir, "app.db")
+    # For SQLite, Flask automatically uses instance folder for relative paths
+    # So DATABASE_URL=sqlite:///app.db will resolve to instance/app.db
+    SQLALCHEMY_DATABASE_URI = (
+        os.environ.get("DATABASE_URL") or "sqlite:///app.db"
+    )  # This will automatically use instance/app.db
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Motion sensor settings
@@ -22,8 +25,6 @@ class Config:
     SNMP_TARGET_IP = os.environ.get("SNMP_TARGET_IP", "192.168.1.1")
     SNMP_COMMUNITY = os.environ.get("SNMP_COMMUNITY", "public")
     PRESENCE_SCAN_INTERVAL = int(os.environ.get("PRESENCE_SCAN_INTERVAL", 60))
-
-
 
 
 class DevelopmentConfig(Config):
