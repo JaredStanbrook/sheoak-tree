@@ -1,6 +1,5 @@
 /**
  * static/js/dashboard.js
- * Handles the "Live" page: Sensor Grid and Presence Widget
  */
 import { socket, Utils, CONFIG } from "./core.js";
 
@@ -12,36 +11,18 @@ class DashboardController {
       widgetList: document.getElementById("people-list"),
       widgetCount: document.getElementById("home-count"),
     };
-
-    // 1. Bind Socket Events specific to this page
     this.bindEvents();
-
-    // 2. Trigger Initial Data Load
     this.refreshGrid();
     this.loadWhoIsHome();
-
-    // Expose instance for HTML onclick events (like toggleRelay)
     window.dashboard = this;
   }
 
   bindEvents() {
-    // When the server sends a sensor update, refresh the grid
     socket.on("sensor_update", (data) => {
-      // If data.all_sensors exists, it's a full refresh
-      if (data.all_sensors) {
-        this.renderSensorGrid(data.all_sensors);
-      }
-      // If it's a single event, we might want to re-fetch or handle partial updates
-      // For simplicity, we re-fetch to ensure sync
-      else {
-        this.refreshGrid();
-      }
+      if (data.all_sensors) this.renderSensorGrid(data.all_sensors);
+      else this.refreshGrid();
     });
-
-    // When someone arrives/leaves, refresh the presence widget
-    socket.on("presence_update", () => {
-      this.loadWhoIsHome();
-    });
+    socket.on("presence_update", () => this.loadWhoIsHome());
   }
 
   async refreshGrid() {
@@ -49,24 +30,20 @@ class DashboardController {
       const data = await Utils.fetchJson("/api/sensors");
       if (data.sensors) this.renderSensorGrid(data.sensors);
     } catch (e) {
-      console.error("Grid load failed", e);
+      console.error(e);
     }
   }
 
   async toggleRelay(sensorId) {
     try {
-      console.log(`Toggling sensor ${sensorId}...`);
       await fetch(`/api/sensors/${sensorId}/toggle`, { method: "POST" });
-    } catch (error) {
-      console.error("Failed to toggle relay:", error);
+    } catch (e) {
       alert("Error communicating with device.");
     }
   }
 
   renderSensorGrid(sensors) {
     if (!this.elements.grid) return;
-
-    // Calculate system summary (Lights/Relays don't count as security alerts)
     const activeCount = sensors.filter((s) => s.value === 1 && s.type !== "relay").length;
     this.updateSystemSummary(activeCount);
 
@@ -74,63 +51,55 @@ class DashboardController {
       .map((sensor) => {
         const isActive = sensor.value === 1;
         let type = (sensor.type || "motion").toLowerCase();
-
-        // Normalize types
         if (type.includes("contact")) type = "door";
         if (type.includes("pir")) type = "motion";
 
-        const activeClass = isActive ? "active" : "";
-
         // --- RELAY CARD ---
         if (type === "relay") {
-          const btnLabel = isActive ? "TURN OFF" : "TURN ON";
-          const btnClass = isActive ? "btn-active" : "";
-          // Lightbulb SVG
-          const bulbIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5a6 6 0 0 0-11 0c0 1.5.5 2.5 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>`;
-
+          const activeClass = isActive ? "active-relay" : "";
+          const btnLabel = isActive ? "Turn Off" : "Turn On";
+          // We add the 'active-relay' class to the main card if it is active
           return `
-                <div class="sensor-card relay ${activeClass}" id="card-${sensor.id}">
-                    <div>
-                        <div class="sensor-name">
-                            ${sensor.name}
-                            <div class="sensor-icon">${bulbIcon}</div>
-                        </div>
-                        <div class="sensor-status">${isActive ? "ON" : "OFF"}</div>
-                    </div>
-                    <div class="sensor-details" style="margin-top: 15px;">
-                        <button class="relay-toggle-btn ${btnClass}" onclick="window.dashboard.toggleRelay(${
-            sensor.id
-          })">
-                            ${btnLabel}
-                        </button>
-                    </div>
-                </div>`;
+            <div class="glass-card ${activeClass}" id="card-${sensor.id}">
+                <div class="sensor-header">
+                   <div>
+                      <div class="sensor-name">${sensor.name}</div>
+                      <div class="sensor-meta">${isActive ? "Active" : "Off"}</div>
+                   </div>
+                   <div class="sensor-icon">💡</div>
+                </div>
+                <div style="margin-top: auto;">
+                    <button class="btn btn-sm btn-block ${
+                      isActive ? "btn-primary" : "btn-secondary"
+                    }" 
+                        onclick="window.dashboard.toggleRelay(${sensor.id})">${btnLabel}</button>
+                </div>
+            </div>`;
         }
 
-        // --- SENSOR CARD ---
-        const typeClass = type === "door" ? "door" : "motion";
-        // Use icons from Core Config
+        // --- SENSOR CARD (Motion/Door) ---
+        const activeClass = isActive ? `active-${type}` : "";
         const iconHtml = type === "door" ? CONFIG.icons.door : CONFIG.icons.motion;
-
-        let statusText = "SECURE";
-        if (isActive) statusText = type === "door" ? "OPEN" : "DETECTED";
+        const statusText = isActive ? (type === "door" ? "Open" : "Detected") : "Secure";
 
         return `
-            <div class="sensor-card ${typeClass} ${activeClass}" id="card-${sensor.id}">
-                <div>
-                    <div class="sensor-name">
-                        ${sensor.name}
-                        <div class="sensor-icon">${iconHtml}</div>
+            <div class="glass-card ${activeClass}" id="card-${sensor.id}">
+                <div class="sensor-header">
+                    <div>
+                        <div class="sensor-name">${sensor.name}</div>
+                        <div class="sensor-meta" style="color: ${
+                          isActive ? "inherit" : "var(--color-text-muted)"
+                        }; font-weight: ${isActive ? "600" : "400"}">
+                            ${statusText}
+                        </div>
                     </div>
-                    <div class="sensor-status">${statusText}</div>
+                    <div class="sensor-icon">${iconHtml}</div>
                 </div>
-                <div class="sensor-details">
-                    <div style="display:flex; justify-content:space-between;">
-                        <span>Last Event:</span>
-                        <strong>${Utils.timeAgo(sensor.last_activity)}</strong>
-                    </div>
-                    <div style="font-size:0.75rem; opacity:0.6; margin-top:4px;">
-                        ${Utils.formatDate(sensor.last_activity)}
+                
+                <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.05);">
+                    <div style="display:flex; justify-content:space-between; font-size: 0.8rem;" class="text-muted">
+                        <span>Last Event</span>
+                        <span>${Utils.timeAgo(sensor.last_activity)}</span>
                     </div>
                 </div>
             </div>`;
@@ -140,22 +109,22 @@ class DashboardController {
 
   updateSystemSummary(activeCount) {
     if (!this.elements.summary) return;
-
     if (activeCount === 0) {
       this.elements.summary.innerHTML = `
-        <div class="summary-card">
+        <div class="glass-panel" style="padding: 16px; display: flex; align-items: center; gap: 16px;">
+            <div style="background: rgba(16, 185, 129, 0.1); color: #059669; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">✓</div>
             <div>
-                <div style="font-weight: 700; font-size: 1.1rem;">System Secure</div>
-                <div style="font-size: 0.9rem; opacity: 0.7;">Sensors are quiet</div>
+                <div style="font-weight: 600;">System Secure</div>
+                <div class="text-muted" style="font-size: 0.9rem;">All sensors are quiet</div>
             </div>
         </div>`;
     } else {
       this.elements.summary.innerHTML = `
-        <div class="summary-card" style="border-color: var(--color-danger);">
-            <div class="icon-wrapper" style="background: rgba(239, 68, 68, 0.2); color: var(--color-danger);">🚨</div>
+        <div class="glass-panel" style="padding: 16px; display: flex; align-items: center; gap: 16px; border: 1px solid var(--color-danger);">
+            <div style="background: var(--color-danger-bg); color: var(--color-danger); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">!</div>
             <div>
-                <div style="font-weight: 700; color: var(--color-danger); font-size: 1.1rem;">Activity Detected</div>
-                <div style="font-size: 0.9rem; opacity: 0.7;">${activeCount} security sensor(s) active</div>
+                <div style="font-weight: 600; color: var(--color-danger);">Activity Detected</div>
+                <div class="text-muted" style="font-size: 0.9rem;">${activeCount} sensor(s) currently active</div>
             </div>
         </div>`;
     }
@@ -168,29 +137,32 @@ class DashboardController {
       if (data.success && this.elements.widgetCount) {
         this.elements.widgetCount.textContent = data.count;
         this.elements.widgetList.innerHTML = "";
-
         if (data.count === 0) {
-          this.elements.widgetList.innerHTML = '<span class="text-muted">No one is home.</span>';
+          this.elements.widgetList.innerHTML =
+            '<span class="text-muted" style="font-size: 0.9rem;">No one is home.</span>';
           return;
         }
-
         data.people_home.forEach((person) => {
           if (person === "Unknown") return;
           const chip = document.createElement("span");
-          chip.className = "person-chip home";
+          chip.className = "chip active";
           chip.innerHTML = `👤 ${person}`;
           this.elements.widgetList.appendChild(chip);
         });
-
-        if (this.elements.widgetList.children.length === 0 && data.count > 0) {
-          this.elements.widgetList.innerHTML = `<span class="person-chip home">${data.count} Unknown Device(s)</span>`;
+        // Unknowns
+        if (data.count > data.people_home.length) {
+          const diff = data.count - data.people_home.length;
+          if (diff > 0) {
+            const chip = document.createElement("span");
+            chip.className = "chip";
+            chip.innerHTML = `${diff} Unknown Device(s)`;
+            this.elements.widgetList.appendChild(chip);
+          }
         }
       }
     } catch (e) {
-      console.error("Presence Widget Error:", e);
+      console.error(e);
     }
   }
 }
-
-// Initialize on page load
 window.dashboard = new DashboardController();

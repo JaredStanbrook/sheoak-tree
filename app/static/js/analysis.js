@@ -1,9 +1,11 @@
-import { socket, Utils, CONFIG } from "./core.js";
+/**
+ * static/js/analysis.js
+ */
+import { socket, Utils } from "./core.js";
 
 class AnalysisController {
   constructor() {
     this.chart = null;
-    this.activityLog = [];
     this.elements = {
       ctx: document.getElementById("frequencyChart"),
       info: document.getElementById("chartInfo"),
@@ -12,39 +14,32 @@ class AnalysisController {
       logList: document.getElementById("activity-list"),
     };
 
-    // Event Listeners
     if (this.elements.timeRange)
       this.elements.timeRange.addEventListener("change", () => this.requestData());
     if (this.elements.intervalRange)
       this.elements.intervalRange.addEventListener("change", () => this.requestData());
 
-    // Socket Events
     socket.on("frequency_data", (data) => {
       if (data.frequency) this.updateChart(data.frequency);
     });
-
     socket.on("activity_data", (data) => {
-      const list = data.activity || data;
-      this.setHistoricalLog(list);
+      this.setHistoricalLog(data.activity || data);
     });
-
     socket.on("sensor_event", (data) => {
-      // Live update the log if new event comes in while viewing
       this.addLogEntry(data);
     });
 
-    // Initialize
     this.initChart();
     this.requestData();
     socket.emit("request_activity_data", { hours: 24 });
   }
 
-  // --- CHART LOGIC ---
   initChart() {
     if (typeof Chart === "undefined") return;
 
-    Chart.defaults.color = "#94a3b8";
-    Chart.defaults.borderColor = "rgba(255, 255, 255, 0.08)";
+    // Light Theme Chart Config
+    Chart.defaults.color = "#64748b";
+    Chart.defaults.borderColor = "rgba(0, 0, 0, 0.05)";
 
     this.chart = new Chart(this.elements.ctx.getContext("2d"), {
       type: "line",
@@ -52,25 +47,19 @@ class AnalysisController {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: { mode: "nearest", axis: "x", intersect: false },
         scales: {
           x: { type: "time", time: { unit: "hour", displayFormats: { hour: "HH:mm" } } },
-          y: {
-            beginAtZero: true,
-            title: { display: true, text: "Motion Intensity" },
-            stack: "motionStack",
-            weight: 2,
-          },
-          y1: { display: false, position: "right", min: 0, max: 1, weight: 0, offset: true }, // Door lane
+          y: { beginAtZero: true, title: { display: false } },
+          y1: { display: false, position: "right", min: 0, max: 1, offset: true },
         },
         plugins: {
+          legend: { labels: { usePointStyle: true, boxWidth: 6 } },
           tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                if (ctx.raw.x && Array.isArray(ctx.raw.x)) return "Door Open";
-                return `Events: ${ctx.raw}`;
-              },
-            },
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            titleColor: "#1e293b",
+            bodyColor: "#64748b",
+            borderColor: "rgba(0,0,0,0.1)",
+            borderWidth: 1,
           },
         },
       },
@@ -86,7 +75,8 @@ class AnalysisController {
   updateChart(data) {
     if (!this.chart) return;
     const { sensors, timestamps, interval_minutes } = data;
-    const palette = ["#10b981", "#3b82f6", "#ec4899", "#8b5cf6"];
+    // Updated Light Palette: Emerald, Blue, Amber, Violet
+    const palette = ["#059669", "#2563eb", "#d97706", "#7c3aed"];
     let colorIdx = 0;
     const datasets = [];
 
@@ -96,7 +86,7 @@ class AnalysisController {
         Array.isArray(rawData) && rawData.length > 0 && rawData[0].hasOwnProperty("state");
 
       if (isDoor) {
-        // Process Door Blocks (Same logic as original app.js)
+        // Door logic remains same, just colors updated
         const blocks = [];
         let openTime = null;
         rawData.forEach((evt) => {
@@ -114,11 +104,11 @@ class AnalysisController {
             type: "bar",
             yAxisID: "y1",
             data: blocks,
-            backgroundColor: "rgba(245, 158, 11, 0.5)",
-            borderColor: "#f59e0b",
-            borderWidth: 2,
-            barThickness: 15,
-            indexAxis: "y", // Horizontal bars on time axis
+            backgroundColor: "rgba(245, 158, 11, 0.5)", // Amber transparent
+            borderColor: "#d97706",
+            borderWidth: 1,
+            barThickness: 12,
+            indexAxis: "y",
           });
         }
       } else {
@@ -129,7 +119,7 @@ class AnalysisController {
           yAxisID: "y",
           data: rawData,
           borderColor: color,
-          backgroundColor: color + "15",
+          backgroundColor: color + "10", // Low opacity hex
           fill: true,
           tension: 0.4,
           borderWidth: 2,
@@ -142,12 +132,12 @@ class AnalysisController {
     this.chart.data.datasets = datasets;
     this.chart.update();
     if (this.elements.info)
-      this.elements.info.innerHTML = `Grouping: <strong>${interval_minutes}m</strong>`;
+      this.elements.info.innerHTML = `Grouping: <strong>${interval_minutes} min</strong> intervals`;
   }
 
-  // --- LOG LOGIC ---
   setHistoricalLog(data) {
     this.activityLog = [];
+    if (this.elements.logList) this.elements.logList.innerHTML = "";
     [...data].reverse().forEach((item) => {
       if (item.value === 1 || item.state === 1 || item.type === "relay") this.addLogEntry(item);
     });
@@ -160,26 +150,21 @@ class AnalysisController {
     const sensor = data.sensor_name || data.name;
 
     const entryHtml = `
-            <div class="log-entry ${type.includes("door") ? "door" : "motion"}">
-                <div class="log-info">
+            <div class="log-item type-${type.includes("door") ? "door" : "motion"}">
+                <div class="log-content">
                     <strong>${sensor}</strong>
                     <span>${event}</span>
                 </div>
-                <div style="text-align:right">
-                    <div class="timestamp">${Utils.formatDate(data.timestamp).split(", ")[1]}</div> 
-                    <div style="font-size:0.7rem; opacity:0.5">${Utils.timeAgo(
-                      data.timestamp
-                    )}</div>
+                <div class="log-time">
+                    <div>${Utils.formatDate(data.timestamp).split(", ")[1]}</div> 
+                    <div style="opacity:0.6">${Utils.timeAgo(data.timestamp)}</div>
                 </div>
             </div>`;
 
     this.elements.logList.insertAdjacentHTML("afterbegin", entryHtml);
-
-    // Trim log
     while (this.elements.logList.children.length > 50) {
       this.elements.logList.removeChild(this.elements.logList.lastChild);
     }
   }
 }
-
 window.analysis = new AnalysisController();

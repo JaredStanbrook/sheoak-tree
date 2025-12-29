@@ -1,24 +1,22 @@
 {% extends "base.html" %} {% block content %}
-<header class="dashboard-header">
-  <h2>Live Status</h2>
-</header>
-
-<div id="presence-widget" class="presence-widget card">
-  <div class="widget-header">
-    <h4 class="px-3">Who is Home</h4>
-    <span id="home-count" class="badge">0</span>
+<div style="margin-bottom: 24px">
+  <div class="glass-panel" style="margin-bottom: 24px">
+    <div class="panel-header">
+      <h3 class="panel-title">Who is Home</h3>
+      <span id="home-count" class="badge badge-gray">0</span>
+    </div>
+    <div id="people-list" style="display: flex; gap: 8px; flex-wrap: wrap">
+      <span class="text-muted text-center" style="width: 100%">Loading presence...</span>
+    </div>
   </div>
-  <div id="people-list" class="people-chips">
-    <span class="text-muted">Loading...</span>
-  </div>
-</div>
 
-<div id="system-summary" class="system-status-bar"></div>
+  <div id="system-summary" style="margin-bottom: 32px"></div>
 
-<div id="sensors-grid" class="sensors-grid">
-  <div class="loading-state">
-    <div class="spinner"></div>
-    <p>Loading sensors...</p>
+  <div id="sensors-grid" class="grid-sensors">
+    <div class="glass-card" style="align-items: center; justify-content: center">
+      <div class="spinner"></div>
+      <p class="text-muted">Loading sensors...</p>
+    </div>
   </div>
 </div>
 {% endblock %} {% block scripts %}
