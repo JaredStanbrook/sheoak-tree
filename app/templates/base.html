@@ -3,74 +3,68 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Home Sensor Monitoring Dashboard" />
-    <meta name="theme-color" content="#1a1a1a" />
-
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>{% block title %}Sheoak Tree{% endblock %}</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet" />
-
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap"
+      rel="stylesheet" />
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js"
       defer></script>
-
     {% block head_scripts %}{% endblock %}
   </head>
-
   <body>
-    <div id="flash-container">
-      {% with messages = get_flashed_messages(with_categories=true) %} {% if messages %} {% for
-      category, message in messages %}
-      <div class="flash-message flash-{{ category }}">{{ message }}</div>
-      {% endfor %} {% endif %} {% endwith %}
+    <div class="container">
+      <div id="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %} {% if messages %} {% for
+        category, message in messages %}
+        <div
+          class="glass-panel"
+          style="background: var(--color-{{ 'primary' if category=='success' else 'danger' }}-bg); border-color: var(--color-{{ 'primary' if category=='success' else 'danger' }}); color: var(--color-{{ 'primary' if category=='success' else 'danger' }}); margin-bottom: 20px; padding: 12px 20px;">
+          {{ message }}
+        </div>
+        {% endfor %} {% endif %} {% endwith %}
+      </div>
+
+      <nav class="glass-panel glass-header">
+        <div class="nav-brand">Sheoak Control</div>
+
+        <div class="nav-menu">
+          <a
+            href="{{ url_for('main.index') }}"
+            class="nav-item {{ 'active' if active_page == 'live' else '' }}"
+            >Live</a
+          >
+          <a
+            href="{{ url_for('main.presence') }}"
+            class="nav-item {{ 'active' if active_page == 'presence' else '' }}"
+            >Presence</a
+          >
+          <a
+            href="{{ url_for('main.analysis') }}"
+            class="nav-item {{ 'active' if active_page == 'analysis' else '' }}"
+            >Analysis</a
+          >
+          <a
+            href="{{ url_for('main.ai_training') }}"
+            class="nav-item {{ 'active' if active_page == 'ai' else '' }}"
+            >AI Training</a
+          >
+          <a
+            href="{{ url_for('sensors.manage_sensors') }}"
+            class="nav-item {{ 'active' if request.endpoint.startswith('sensors.') else '' }}"
+            >Config</a
+          >
+        </div>
+
+        <div class="status-pill">
+          <div class="status-dot connected"></div>
+          <span id="connection-text">Connected</span>
+        </div>
+      </nav>
+
+      <main>{% block content %}{% endblock %}</main>
     </div>
-
-    {% block navbar %}
-    <nav class="main-nav">
-      <div class="nav-brand">Sheoak Control</div>
-
-      <div class="nav-links">
-        <a
-          href="{{ url_for('main.index') }}"
-          class="nav-item {{ 'active' if active_page == 'live' else '' }}"
-          >Live</a
-        >
-        <a
-          href="{{ url_for('main.presence') }}"
-          class="nav-item {{ 'active' if active_page == 'presence' else '' }}"
-          >Presence</a
-        >
-        <a
-          href="{{ url_for('main.analysis') }}"
-          class="nav-item {{ 'active' if active_page == 'analysis' else '' }}"
-          >Analysis</a
-        >
-        <a
-          href="{{ url_for('main.ai_training') }}"
-          class="nav-item {{ 'active' if active_page == 'ai' else '' }}"
-          >AI Training</a
-        >
-      </div>
-
-      <div class="connection-pill">
-        <span class="status-dot connected"></span>
-        <span id="connection-text">Connected</span>
-      </div>
-    </nav>
-    {% endblock %}
-
-    <main class="container">{% block content %}{% endblock %}</main>
-
-    <footer class="main-footer">
-      <p>&copy; 2025 Sheoak Sensors | <span id="system-time"></span></p>
-    </footer>
 
     {% block scripts %}{% endblock %}
   </body>

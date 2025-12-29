@@ -1,51 +1,71 @@
 {% extends "base.html" %} {% block content %}
-<header class="dashboard-header">
-  <h2>AI Training & Review</h2>
-</header>
+<div class="layout-grid">
+  <div class="glass-panel">
+    <div class="panel-header"><h3 class="panel-title">Processor Controls</h3></div>
 
-<div class="review-layout">
-  <div class="card control-panel">
-    <div class="card-header"><h3>Processor</h3></div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Window (sec)</label>
-        <input type="number" id="windowSize" value="60" />
-      </div>
-      <div class="form-group">
-        <label>Gap (sec)</label>
-        <input type="number" id="gapThreshold" value="300" />
-      </div>
+    <div class="form-group">
+      <label class="form-label">Window Size (sec)</label>
+      <input type="number" id="windowSize" class="form-input" value="60" />
     </div>
-    <div class="button-group vertical">
-      <button class="btn btn-primary full-width" id="fullBtn" onclick="window.ai.process(false)">
+    <div class="form-group">
+      <label class="form-label">Sequence Gap (sec)</label>
+      <input type="number" id="gapThreshold" class="form-input" value="300" />
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 24px">
+      <button class="btn btn-primary btn-block" id="fullBtn" onclick="window.ai.process(false)">
         Rebuild All
       </button>
-      <button class="btn btn-secondary full-width" id="incBtn" onclick="window.ai.process(true)">
+      <button class="btn btn-secondary btn-block" id="incBtn" onclick="window.ai.process(true)">
         Incremental Update
       </button>
     </div>
-    <div class="stats-mini">
-      <div class="stat-row"><span>Total</span> <strong id="totalSequences">0</strong></div>
-      <div class="stat-row">
-        <span>Labeled</span> <strong id="labeledSequences" class="text-success">0</strong>
+
+    <div style="margin-top: 32px; padding-top: 20px; border-top: 1px solid rgba(0, 0, 0, 0.05)">
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 8px;
+          font-size: 0.9rem;
+        ">
+        <span class="text-muted">Total Sequences</span>
+        <strong id="totalSequences">0</strong>
       </div>
-      <div class="stat-row">
-        <span>Unlabeled</span> <strong id="unlabeledSequences" class="text-warning">0</strong>
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 8px;
+          font-size: 0.9rem;
+        ">
+        <span class="text-muted">Labeled</span>
+        <strong id="labeledSequences" class="text-success">0</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 0.9rem">
+        <span class="text-muted">Unlabeled</span>
+        <strong id="unlabeledSequences" class="text-warning">0</strong>
       </div>
     </div>
   </div>
 
-  <div class="card list-panel">
-    <div id="sequenceList" class="sequence-list"></div>
+  <div class="glass-panel">
+    <div id="sequenceList"></div>
+
     <div
       id="pagination"
-      class="pagination"
-      style="display: none; justify-content: center; gap: 10px; margin-top: 20px">
-      <button class="btn btn-small btn-secondary" id="prevBtn" onclick="window.ai.changePage(-1)">
-        Prev
+      style="
+        display: none;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        margin-top: 24px;
+      ">
+      <button class="btn btn-sm btn-secondary" id="prevBtn" onclick="window.ai.changePage(-1)">
+        Previous
       </button>
-      <span id="pageInfo"></span>
-      <button class="btn btn-small btn-secondary" id="nextBtn" onclick="window.ai.changePage(1)">
+      <span id="pageInfo" class="text-muted" style="font-size: 0.9rem"></span>
+      <button class="btn btn-sm btn-secondary" id="nextBtn" onclick="window.ai.changePage(1)">
         Next
       </button>
     </div>
@@ -53,11 +73,11 @@
 </div>
 
 <div id="sequenceModal" class="modal-overlay">
-  <div class="modal-card">
+  <div class="modal-content" style="max-width: 600px">
     <div class="modal-header">
-      <h2>Sequence Details</h2>
+      <h3 class="panel-title">Sequence Details</h3>
       <button
-        class="close-btn"
+        class="btn-close"
         onclick="document.getElementById('sequenceModal').classList.remove('active')">
         &times;
       </button>
