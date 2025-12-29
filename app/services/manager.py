@@ -10,7 +10,7 @@ class ServiceManager:
     _instance = None
     _motion_app = None
     _processor = None
-    _presence_monitor = None 
+    _presence_monitor = None
 
     @classmethod
     def get_instance(cls):
@@ -65,7 +65,7 @@ class ServiceManager:
             is_production = os.environ.get("FLASK_ENV") == "production"
 
             # Load if we are in reloader, OR if we are NOT in debug mode (Gunicorn)
-            should_load = is_reloader or (not is_debug) or is_production
+            should_load = is_reloader or is_debug or is_production
 
             if should_load:
                 try:
@@ -73,17 +73,17 @@ class ServiceManager:
                     from app.services.presence_monitor import PresenceMonitor
 
                     real_app = current_app._get_current_object()
-                    
+
                     # Get config from app
-                    target_ip = real_app.config.get('SNMP_TARGET_IP', '192.168.1.1')
-                    community = real_app.config.get('SNMP_COMMUNITY', 'public')
-                    interval = real_app.config.get('PRESENCE_SCAN_INTERVAL', 60)
-                    
+                    target_ip = real_app.config.get("SNMP_TARGET_IP", "192.168.1.1")
+                    community = real_app.config.get("SNMP_COMMUNITY", "public")
+                    interval = real_app.config.get("PRESENCE_SCAN_INTERVAL", 60)
+
                     self._presence_monitor = PresenceMonitor(
                         app=real_app,
                         target_ip=target_ip,
                         community=community,
-                        scan_interval=interval
+                        scan_interval=interval,
                     )
                     logger.info("PresenceMonitor initialized successfully")
                 except Exception as e:
@@ -100,7 +100,7 @@ class ServiceManager:
         if self._motion_app:
             logger.info("Cleaning up MotionSensorApp...")
             self._motion_app.cleanup()
-        
+
         if self._presence_monitor:
             logger.info("Cleaning up PresenceMonitor...")
             self._presence_monitor.cleanup()
