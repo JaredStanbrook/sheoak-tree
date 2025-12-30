@@ -1,20 +1,30 @@
-/* =========================================
+/* ========================================================================
    app/static/css/style.css
-   Theme: Light Refined Glassmorphism
-   ========================================= */
+   Theme: Light Refined Glassmorphism (Bootstrap-Aligned Refactor)
+   ======================================================================== */
 
 :root {
-  /* --- Typography --- */
+  /* ----------------------------------------------------------------------
+     1. Typography Tokens
+     ---------------------------------------------------------------------- */
+  /* Base Variables */
   --font-primary: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "SF Mono", "Fira Code", Consolas, monospace;
 
-  /* --- Color Palette (Light Mode) --- */
+  /* ----------------------------------------------------------------------
+     2. Color Palette (Light Mode Default)
+     ---------------------------------------------------------------------- */
+  /* Text Colors */
   --color-text-main: #1e293b; /* Slate 800 */
   --color-text-muted: #64748b; /* Slate 500 */
   --color-text-light: #94a3b8; /* Slate 400 */
 
+  /* Semantic Colors */
   --color-primary: #059669; /* Emerald 600 */
   --color-primary-bg: rgba(16, 185, 129, 0.15);
+
+  --color-secondary: #6b7280; /* Gray 500 */
+  --color-secondary-bg: rgba(107, 114, 128, 0.1);
 
   --color-danger: #dc2626; /* Red 600 */
   --color-danger-bg: rgba(239, 68, 68, 0.1);
@@ -25,30 +35,102 @@
   --color-info: #2563eb; /* Blue 600 */
   --color-info-bg: rgba(59, 130, 246, 0.1);
 
-  /* --- Glassmorphism Variables --- */
+  /* ----------------------------------------------------------------------
+     3. Glassmorphism System & Surfaces
+     ---------------------------------------------------------------------- */
+  /* App Backgrounds */
   --bg-app: #f0f2f5;
+
+  /* Glass Effects */
   --bg-glass: rgba(255, 255, 255, 0.7);
   --bg-glass-hover: rgba(255, 255, 255, 0.85);
   --bg-glass-input: rgba(255, 255, 255, 0.5);
 
   --border-glass: 1px solid rgba(255, 255, 255, 0.8);
   --border-glass-strong: 1px solid rgba(255, 255, 255, 1);
+  --border-color: rgba(255, 255, 255, 0.8); /* Approximation for BS compatibility */
 
   --shadow-glass: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   --shadow-glass-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
   --backdrop-blur: blur(16px);
 
-  /* --- Layout & Spacing --- */
+  /* ----------------------------------------------------------------------
+     4. Layout, Spacing & Motion
+     ---------------------------------------------------------------------- */
+  /* Radii */
   --radius-lg: 24px;
   --radius-md: 16px;
   --radius-sm: 8px;
+
+  /* Dimensions */
   --header-height: 80px;
+
+  /* Animation */
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Surfaces */
+  --bg-surface-solid: #ffffff;
+  --bg-surface-subtle: rgba(0, 0, 0, 0.03);
+  --bg-surface-highlight: rgba(255, 255, 255, 0.5);
+
+  /* Borders */
+  --border-subtle: rgba(0, 0, 0, 0.05);
+
+  /* Interactive/State */
+  --bg-hover-glass: rgba(255, 255, 255, 0.4);
+  --bg-hover-strong: #000000;
+
+  /* Gradients */
+  --grad-glass-shine: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  --grad-danger: linear-gradient(135deg, var(--color-danger), #b91c1c); /* Using var for start */
+  --grad-warn: linear-gradient(135deg, var(--color-warn), #b45309);
+  --grad-success: linear-gradient(135deg, var(--color-primary), #047857);
 }
 
-/* =========================================
-   Reset & Base
-   ========================================= */
+/* ========================================================================
+   Theme: Dark Mode Overrides
+   ======================================================================== */
+[data-theme="dark"] {
+  /* Text */
+  --color-text-main: #f1f5f9; /* Slate 100 */
+  --color-text-muted: #94a3b8; /* Slate 400 */
+  --color-text-light: #64748b; /* Slate 500 */
+
+  /* Backgrounds */
+  --bg-app: #0f172a; /* Slate 900 */
+
+  /* Glass Panels (Darkened) */
+  --bg-glass: rgba(30, 41, 59, 0.6);
+  --bg-glass-hover: rgba(30, 41, 59, 0.8);
+  --bg-glass-input: rgba(15, 23, 42, 0.6);
+
+  /* Borders & Shadows */
+  --border-glass: 1px solid rgba(255, 255, 255, 0.1);
+  --border-glass-strong: 1px solid rgba(255, 255, 255, 0.2);
+  --shadow-glass: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+
+  --bg-surface-solid: #1e293b; /* Matches Slate 800 */
+  --bg-surface-subtle: rgba(255, 255, 255, 0.05);
+  --bg-surface-highlight: rgba(255, 255, 255, 0.1);
+
+  --border-subtle: rgba(255, 255, 255, 0.1);
+
+  --bg-hover-glass: rgba(255, 255, 255, 0.1);
+  --bg-hover-strong: #ffffff;
+
+  --grad-glass-shine: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+}
+
+/* ========================================================================
+   Base & Reset
+   ======================================================================== */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -58,12 +140,14 @@
 body {
   font-family: var(--font-primary);
   color: var(--color-text-main);
-  background: radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.08), transparent 40%),
-    radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.08), transparent 40%), var(--bg-app);
+  line-height: 1.5;
+
+  /* Original Gradient Background */
+  background: radial-gradient(circle at 0% 0%, var(--color-primary-bg), transparent 40%),
+    radial-gradient(circle at 100% 0%, var(--color-info-bg), transparent 40%), var(--bg-app);
   background-attachment: fixed;
   min-height: 100vh;
-  line-height: 1.5;
-  padding-bottom: 40px; /* Footer space */
+  padding-bottom: 40px;
 }
 
 a {
@@ -71,13 +155,14 @@ a {
   color: inherit;
   transition: var(--transition);
 }
+
 ul {
   list-style: none;
 }
 
-/* =========================================
+/* ========================================================================
    Layout Containers
-   ========================================= */
+   ======================================================================== */
 .container {
   width: 100%;
   max-width: 1200px;
@@ -92,15 +177,16 @@ ul {
   align-items: start;
 }
 
-/* =========================================
-   Components: Glass Panels & Cards
-   ========================================= */
+/* ========================================================================
+   Component: Glass Architecture
+   ======================================================================== */
+/* Base Glass Panel */
 .glass-panel {
   background: var(--bg-glass);
   backdrop-filter: var(--backdrop-blur);
   -webkit-backdrop-filter: var(--backdrop-blur);
   border: var(--border-glass);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-glass);
   padding: 24px;
   transition: var(--transition);
@@ -118,58 +204,55 @@ ul {
   margin-bottom: 32px;
 }
 
-/* =========================================
-   Refined Glass Cards (app/static/css/style.css)
-   ========================================= */
-
-.glass-card {
-  /* Layout */
+/* Internal Panel Header */
+.panel-header {
   display: flex;
-  flex-direction: column;
   justify-content: space-between;
-  min-height: 180px; /* Slightly taller for breathing room */
-  position: relative;
-  overflow: hidden;
-
-  /* Glass Base */
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.2) 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-
-  /* Light Source Border Effect (Top/Left brighter) */
-  border-top: 1px solid rgba(255, 255, 255, 0.8);
-  border-left: 1px solid rgba(255, 255, 255, 0.8);
-  border-right: 1px solid rgba(255, 255, 255, 0.3);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-
-  padding: 24px;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-/* Hover Lift */
+.panel-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+/* ========================================================================
+   Component: Glass Cards & Sensors
+   ======================================================================== */
+.glass-card {
+  background: var(--bg-glass);
+  backdrop-filter: var(--backdrop-blur);
+  -webkit-backdrop-filter: var(--backdrop-blur);
+  border: var(--border-glass);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glass);
+  padding: 24px;
+  transition: var(--transition);
+}
+
 .glass-card:hover {
   transform: translateY(-6px);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.3) 100%);
-  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  background: var(--grad-glass-shine);
+  box-shadow: var(--shadow-glass-hover);
 }
 
-/* Sensor Header Layout */
+/* Sensor Layouts */
 .glass-card .sensor-header {
   display: flex;
-  align-items: flex-start; /* Align to top */
+  align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 20px;
 }
 
-/* Icon Container */
 .glass-card .sensor-icon {
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--bg-surface-highlight);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
   display: flex;
   align-items: center;
@@ -179,7 +262,6 @@ ul {
   transition: var(--transition);
 }
 
-/* Status Text */
 .glass-card .sensor-name {
   font-size: 1.1rem;
   font-weight: 700;
@@ -193,60 +275,78 @@ ul {
   margin-top: 4px;
 }
 
-/* --- Active States (Glows) --- */
-
-/* Motion Active */
+/* --- Sensor State: Motion --- */
 .glass-card.active-motion {
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.3); /* Preserving original values */
   box-shadow: 0 10px 40px -10px rgba(239, 68, 68, 0.3), inset 0 0 20px rgba(239, 68, 68, 0.05);
+  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.9), rgba(254, 226, 226, 0.5));
 }
 .glass-card.active-motion .sensor-icon {
-  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  background: var(--grad-danger);
   color: white;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
+.glass-card.active-motion .sensor-state {
+  background: var(--color-danger);
+  color: #fff;
+}
 
-/* Door Open */
+/* --- Sensor State: Door --- */
 .glass-card.active-door {
   border-color: rgba(245, 158, 11, 0.3);
   box-shadow: 0 10px 40px -10px rgba(245, 158, 11, 0.3), inset 0 0 20px rgba(245, 158, 11, 0.05);
+  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.9), rgba(254, 243, 199, 0.5));
 }
 .glass-card.active-door .sensor-icon {
-  background: linear-gradient(135deg, #f59e0b, #b45309);
+  background: var(--grad-warn);
   color: white;
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
 }
+.glass-card.active-door .sensor-state {
+  background: var(--color-warn);
+  color: #fff;
+}
 
-/* Relay On */
+/* --- Sensor State: Relay --- */
 .glass-card.active-relay {
   border-color: rgba(16, 185, 129, 0.3);
   box-shadow: 0 10px 40px -10px rgba(16, 185, 129, 0.3), inset 0 0 20px rgba(16, 185, 129, 0.05);
 }
 .glass-card.active-relay .sensor-icon {
-  background: linear-gradient(135deg, #10b981, #047857);
+  background: var(--grad-success);
   color: white;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-/* Header inside a card */
-.panel-header {
+/* Sensor Grid Layout */
+.grid-sensors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+/* General Sensor Helpers */
+.sensor-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  gap: 12px;
+  margin-bottom: auto;
 }
 
-.panel-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--color-text-main);
+.sensor-state {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--color-text-muted);
 }
 
-/* =========================================
-   Navigation
-   ========================================= */
+/* ========================================================================
+   Component: Navigation
+   ======================================================================== */
 .nav-brand {
   font-size: 1.25rem;
   font-weight: 700;
@@ -257,27 +357,27 @@ ul {
 .nav-menu {
   display: flex;
   gap: 8px;
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--bg-surface-solid);
   padding: 4px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg); /* Mapped to radius-md */
 }
 
 .nav-item {
   padding: 8px 16px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm); /* Mapped to radius-sm */
   font-weight: 500;
   color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--bg-app);
   color: var(--color-text-main);
 }
 
 .nav-item.active {
-  background: #fff;
-  color: var(--color-primary);
+  background: var(--bg-app);
+  color: var(--bs-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
@@ -286,7 +386,7 @@ ul {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--bg-glass);
   border-radius: 20px;
   border: var(--border-glass);
   font-size: 0.8rem;
@@ -301,13 +401,63 @@ ul {
 }
 
 .status-dot.connected {
-  background-color: var(--color-primary);
+  background-color: var(--bs-primary);
   box-shadow: 0 0 0 2px var(--color-primary-bg);
 }
 
-/* =========================================
-   Forms & Inputs
-   ========================================= */
+/* Theme Toggle */
+.theme-toggle-btn {
+  background: var(--bg-glass-input);
+  border: var(--border-glass);
+  color: var(--color-text-main);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-left: 12px;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--bg-glass-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+
+.theme-rotate {
+  animation: spin-fade 0.4s ease-out;
+}
+
+@keyframes spin-fade {
+  0% {
+    transform: rotate(0) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: rotate(90deg) scale(0.5);
+    opacity: 0;
+  }
+  51% {
+    transform: rotate(-90deg) scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ========================================================================
+   Component: Forms
+   ======================================================================== */
 .form-group {
   margin-bottom: 16px;
 }
@@ -326,7 +476,7 @@ ul {
   padding: 10px 14px;
   background: var(--bg-glass-input);
   border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   color: var(--color-text-main);
   font-family: inherit;
   transition: var(--transition);
@@ -335,20 +485,20 @@ ul {
 .form-input:focus,
 .form-select:focus {
   outline: none;
-  background: #fff;
-  border-color: var(--color-primary);
+  background: var(--bg-surface-solid);
+  border-color: var(--bs-primary);
   box-shadow: 0 0 0 3px var(--color-primary-bg);
 }
 
-/* =========================================
-   Buttons
-   ========================================= */
+/* ========================================================================
+   Component: Buttons
+   ======================================================================== */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 10px 20px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 0.9rem;
   cursor: pointer;
@@ -361,35 +511,34 @@ ul {
   padding: 6px 12px;
   font-size: 0.8rem;
 }
+
 .btn-block {
   width: 100%;
 }
 
 .btn-primary {
-  background: var(--color-text-main);
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-text-main);
 }
 .btn-primary:hover {
-  background: #000;
+  background: var(--color-primary-bg);
   transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--color-secondary);
   color: var(--color-text-main);
 }
 .btn-secondary:hover {
-  background: #fff;
-  border-color: rgba(0, 0, 0, 0.2);
+  background: var(--color-secondary-bg);
 }
 
 .btn-danger {
   background: var(--color-danger-bg);
-  color: var(--color-danger);
+  color: var(--bs-danger);
 }
 .btn-danger:hover {
-  background: var(--color-danger);
+  background: var(--bs-danger);
   color: #fff;
 }
 
@@ -402,73 +551,9 @@ ul {
   color: var(--color-text-main);
 }
 
-/* =========================================
-   Data Display (Tables, Lists, Sensors)
-   ========================================= */
-/* Sensor Grid */
-.grid-sensors {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 20px;
-}
-
-.sensor-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: auto;
-}
-
-.sensor-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.03);
-  font-size: 1.2rem;
-}
-
-.sensor-state {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--color-text-muted);
-}
-
-/* Active States */
-.glass-card.active-motion {
-  border-color: var(--color-danger);
-  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.9), rgba(254, 226, 226, 0.5));
-}
-.glass-card.active-motion .sensor-icon {
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
-}
-.glass-card.active-motion .sensor-state {
-  background: var(--color-danger);
-  color: #fff;
-}
-
-.glass-card.active-door {
-  border-color: var(--color-warn);
-  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.9), rgba(254, 243, 199, 0.5));
-}
-.glass-card.active-door .sensor-icon {
-  background: var(--color-warn-bg);
-  color: var(--color-warn);
-}
-.glass-card.active-door .sensor-state {
-  background: var(--color-warn);
-  color: #fff;
-}
-
-/* Tables */
+/* ========================================================================
+   Component: Tables & Logs
+   ======================================================================== */
 .table-container {
   overflow-x: auto;
 }
@@ -485,7 +570,7 @@ ul {
   text-transform: uppercase;
   color: var(--color-text-muted);
   font-weight: 700;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .glass-table td {
@@ -514,7 +599,7 @@ ul {
   align-items: center;
   padding: 12px;
   margin-bottom: 8px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.3);
   border: 1px solid transparent;
   transition: var(--transition);
@@ -525,10 +610,10 @@ ul {
 }
 
 .log-item.type-motion {
-  border-left: 3px solid var(--color-danger);
+  border-left: 3px solid var(--bs-danger);
 }
 .log-item.type-door {
-  border-left: 3px solid var(--color-warn);
+  border-left: 3px solid var(--bs-warning);
 }
 
 .log-content strong {
@@ -546,71 +631,9 @@ ul {
   color: var(--color-text-light);
 }
 
-/* =========================================
-   Badges & Chips
-   ========================================= */
-.badge {
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-.badge-gray {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--color-text-muted);
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  box-shadow: var(--shadow-glass);
-}
-.chip.active {
-  background: var(--color-primary-bg);
-  color: var(--color-primary);
-  border-color: transparent;
-}
-
-/* =========================================
-   Utilities & Modal
-   ========================================= */
-.text-right {
-  text-align: right;
-}
-.text-center {
-  text-align: center;
-}
-.text-muted {
-  color: var(--color-text-muted);
-}
-.text-success {
-  color: var(--color-primary);
-}
-.text-warning {
-  color: var(--color-warn);
-}
-.text-mono {
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-}
-.flex-end {
-  justify-content: flex-end;
-}
-.mt-4 {
-  margin-top: 16px;
-}
-.gap-2 {
-  gap: 8px;
-}
-
-/* Modal */
+/* ========================================================================
+   Component: Modals & Overlays
+   ======================================================================== */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -625,10 +648,10 @@ ul {
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--bg-surface-solid);
   width: 90%;
   max-width: 500px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   animation: modalSlide 0.3s ease-out;
@@ -669,12 +692,11 @@ ul {
   }
 }
 
-/* Loading Spinner */
 .spinner {
   width: 24px;
   height: 24px;
   border: 2px solid rgba(0, 0, 0, 0.1);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--bs-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin: 0 auto 12px;
@@ -685,7 +707,70 @@ ul {
   }
 }
 
-/* Mobile */
+/* ========================================================================
+   Utilities & Badges
+   ======================================================================== */
+.text-right {
+  text-align: right;
+}
+.text-center {
+  text-align: center;
+}
+.text-muted {
+  color: var(--color-text-muted);
+}
+.text-success {
+  color: var(--bs-primary);
+}
+.text-warning {
+  color: var(--bs-warning);
+}
+.text-mono {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+.flex-end {
+  justify-content: flex-end;
+}
+.mt-4 {
+  margin-top: 16px;
+}
+.gap-2 {
+  gap: 8px;
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-gray {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--color-text-muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  box-shadow: var(--shadow-glass);
+}
+.chip.active {
+  background: var(--color-primary-bg);
+  color: var(--bs-primary);
+  border-color: transparent;
+}
+
+/* ========================================================================
+   Mobile Responsiveness
+   ======================================================================== */
 @media (max-width: 768px) {
   .glass-header {
     flex-direction: column;

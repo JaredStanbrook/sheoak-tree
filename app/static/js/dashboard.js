@@ -78,8 +78,13 @@ class DashboardController {
         }
 
         // --- SENSOR CARD (Motion/Door) ---
+        let iconHtml = "";
+        if (type === "door") {
+          iconHtml = isActive ? CONFIG.icons.doorActive : CONFIG.icons.doorInactive;
+        } else {
+          iconHtml = isActive ? CONFIG.icons.motionActive : CONFIG.icons.motionInactive;
+        }
         const activeClass = isActive ? `active-${type}` : "";
-        const iconHtml = type === "door" ? CONFIG.icons.door : CONFIG.icons.motion;
         const statusText = isActive ? (type === "door" ? "Open" : "Detected") : "Secure";
 
         return `
@@ -105,6 +110,11 @@ class DashboardController {
             </div>`;
       })
       .join("");
+    if (window.lucide) {
+      window.lucide.createIcons({
+        root: this.elements.grid,
+      });
+    }
   }
 
   updateSystemSummary(activeCount) {

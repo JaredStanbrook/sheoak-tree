@@ -2,7 +2,6 @@
  * static/js/core.js
  * Shared utilities and Socket connection
  */
-
 export const CONFIG = {
   socketPath: "/sheoak/socket.io",
   maxLogEntries: 50, // Reduced slightly for performance
@@ -18,8 +17,10 @@ export const CONFIG = {
     gridLines: "rgba(255, 255, 255, 0.08)",
   },
   icons: {
-    motion: '<span style="font-size:1.2em">👁️</span>',
-    door: '<span style="font-size:1.2em">🚪</span>',
+    motionActive: '<i data-lucide="eye"></i>',
+    motionInactive: '<i data-lucide="eye-off"></i>',
+    doorActive: '<i data-lucide="door-open"></i>',
+    doorInactive: '<i data-lucide="door-closed"></i>',
   },
 };
 
