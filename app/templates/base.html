@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Sheoak Tree{% endblock %}</title>
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap"
@@ -11,6 +12,7 @@
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js"
       defer></script>
+    <script src="https://unpkg.com/lucide@latest" defer></script>
     {% block head_scripts %}{% endblock %}
   </head>
   <body>
@@ -52,7 +54,7 @@
           >
           <a
             href="{{ url_for('sensors.manage_sensors') }}"
-            class="nav-item {{ 'active' if request.endpoint.startswith('sensors.') else '' }}"
+            class="nav-item {{ 'active' if active_page == 'config' else '' }}"
             >Config</a
           >
         </div>
@@ -61,11 +63,25 @@
           <div class="status-dot connected"></div>
           <span id="connection-text">Connected</span>
         </div>
+        <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle dark mode">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+          </svg>
+        </button>
       </nav>
 
       <main>{% block content %}{% endblock %}</main>
     </div>
-
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     {% block scripts %}{% endblock %}
   </body>
 </html>
