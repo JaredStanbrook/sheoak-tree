@@ -31,8 +31,9 @@ class PresenceController {
       if (data.success) {
         data.devices.forEach((device) => {
           const tr = document.createElement("tr");
-          const lastSeen = new Date(device.last_seen).toLocaleString("en-AU"); // Simplified locale
-          const statusClass = device.is_home ? "online" : "offline";
+          const lastSeen = new Date(device.last_seen).toLocaleString("en-AU");
+          const isRecentlyHome = Date.now() - new Date(device.last_seen).getTime() < 60000;
+          const statusClass = isRecentlyHome ? "connected" : "offline";
 
           const privacyIcon = device.is_randomized_mac
             ? '<span title="Private Wi-Fi Address" style="cursor:help">🛡️</span>'
@@ -75,7 +76,7 @@ class PresenceController {
                         </td>
                         <td style="font-size: 0.85rem; color: var(--color-text-muted);">${lastSeen}</td>
                         <td>
-                            <button class="btn btn-small btn-secondary" 
+                            <button class="btn btn-small" 
                                 onclick="window.presence.openEditModal(${
                                   device.id
                                 }, '${safeName}', '${safeOwner}', ${device.track_presence})">

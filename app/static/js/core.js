@@ -97,9 +97,5 @@ function updateConnectionStatus(isConnected) {
   if (text) text.textContent = isConnected ? "Connected" : "Offline";
   if (dot) {
     dot.className = `status-dot ${isConnected ? "connected" : ""}`;
-    if (dot.parentElement)
-      dot.parentElement.style.borderColor = isConnected
-        ? "var(--glass-border)"
-        : "var(--color-danger)";
   }
 }
