@@ -21,13 +21,13 @@
 
   /* Semantic Colors */
   --color-primary: #059669; /* Emerald 600 */
-  --color-primary-bg: rgba(16, 185, 129, 0.15);
+  --color-primary-bg: rgba(17, 165, 116, 0.595);
 
   --color-secondary: #6b7280; /* Gray 500 */
   --color-secondary-bg: rgba(107, 114, 128, 0.1);
 
   --color-danger: #dc2626; /* Red 600 */
-  --color-danger-bg: rgba(239, 68, 68, 0.1);
+  --color-danger-bg: rgba(239, 68, 68, 0.564);
 
   --color-warn: #d97706; /* Amber 600 */
   --color-warn-bg: rgba(245, 158, 11, 0.15);
@@ -48,7 +48,6 @@
 
   --border-glass: 1px solid rgba(255, 255, 255, 0.8);
   --border-glass-strong: 1px solid rgba(255, 255, 255, 1);
-  --border-color: rgba(255, 255, 255, 0.8); /* Approximation for BS compatibility */
 
   --shadow-glass: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   --shadow-glass-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
@@ -143,8 +142,7 @@ body {
   line-height: 1.5;
 
   /* Original Gradient Background */
-  background: radial-gradient(circle at 0% 0%, var(--color-primary-bg), transparent 40%),
-    radial-gradient(circle at 100% 0%, var(--color-info-bg), transparent 40%), var(--bg-app);
+  background: var(--bg-app);
   background-attachment: fixed;
   min-height: 100vh;
   padding-bottom: 40px;
@@ -364,7 +362,7 @@ ul {
 
 .nav-item {
   padding: 8px 16px;
-  border-radius: var(--radius-sm); /* Mapped to radius-sm */
+  border-radius: var(--radius-lg); /* Mapped to radius-sm */
   font-weight: 500;
   color: var(--color-text-muted);
   font-size: 0.9rem;
@@ -397,12 +395,11 @@ ul {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--color-text-light);
+  background-color: var(--color-danger);
 }
 
 .status-dot.connected {
-  background-color: var(--bs-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-bg);
+  background-color: var(--color-primary);
 }
 
 /* Theme Toggle */
@@ -518,7 +515,7 @@ ul {
 
 .btn-primary {
   background: var(--color-primary);
-  color: var(--color-text-main);
+  color: var(--bg-surface-solid);
 }
 .btn-primary:hover {
   background: var(--color-primary-bg);
@@ -534,12 +531,12 @@ ul {
 }
 
 .btn-danger {
-  background: var(--color-danger-bg);
-  color: var(--bs-danger);
+  background: var(--color-danger);
+  color: var(--bg-surface-solid);
 }
 .btn-danger:hover {
-  background: var(--bs-danger);
-  color: #fff;
+  background: var(--color-danger-bg);
+  color: var(--bg-surface-solid);
 }
 
 .btn-ghost {
