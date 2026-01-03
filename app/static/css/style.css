@@ -157,6 +157,13 @@ a {
 ul {
   list-style: none;
 }
+footer {
+  text-align: center;
+  padding: 20px;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin-top: auto;
+}
 
 /* ========================================================================
    Layout Containers
@@ -435,19 +442,19 @@ ul {
 
 @keyframes spin-fade {
   0% {
-    transform: rotate(0) scale(1);
+    transform: rotate(0);
     opacity: 1;
   }
   50% {
-    transform: rotate(90deg) scale(0.5);
+    transform: rotate(90deg);
     opacity: 0;
   }
   51% {
-    transform: rotate(-90deg) scale(0.5);
+    transform: rotate(-90deg);
     opacity: 0;
   }
   100% {
-    transform: rotate(0) scale(1);
+    transform: rotate(0);
     opacity: 1;
   }
 }

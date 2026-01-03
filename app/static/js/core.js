@@ -99,3 +99,20 @@ function updateConnectionStatus(isConnected) {
     dot.className = `status-dot ${isConnected ? "connected" : ""}`;
   }
 }
+const updateTime = () => {
+  const el = document.getElementById("system-time");
+  if (el) {
+    el.textContent = new Date().toLocaleTimeString(CONFIG.locale, {
+      timeZone: CONFIG.timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      //fractionalSecondDigits: 2, Adds the milliseconds (2 digits)
+    });
+  }
+};
+document.addEventListener("DOMContentLoaded", () => {
+  updateTime();
+  setInterval(updateTime, 1000);
+  if (window.lucide) window.lucide.createIcons();
+});
