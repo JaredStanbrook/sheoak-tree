@@ -773,19 +773,156 @@ footer {
 }
 
 /* ========================================================================
-   Mobile Responsiveness
+   MOBILE RESPONSIVENESS & TOUCH OPTIMIZATION
    ======================================================================== */
-@media (max-width: 768px) {
-  .glass-header {
-    flex-direction: column;
-    gap: 16px;
-    align-items: stretch;
-  }
-  .nav-menu {
-    overflow-x: auto;
-    padding-bottom: 8px;
-  }
+
+/* --- Tablet & Smaller Laptops (Max Width: 1024px) --- */
+@media (max-width: 1024px) {
   .layout-grid {
+    /* Reduce sidebar width slightly on smaller laptops */
+    grid-template-columns: 240px 1fr;
+    gap: 16px;
+  }
+}
+
+/* --- Mobile Devices & Tablets (Max Width: 768px) --- */
+@media (max-width: 768px) {
+  /* 1. Layout Reset: Stack everything vertically */
+  .layout-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .container {
+    padding: 0 16px; /* Reduce container padding */
+  }
+
+  /* 2. Header Adjustments */
+  .glass-header {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 16px;
+    top: 10px; /* Add breathing room from top notch */
+    margin-bottom: 20px;
+    /* On mobile, sometimes sticky headers take up too much space. 
+       Uncomment next line if you want it to scroll away: */
+    /* position: relative; top: 0; */
+  }
+
+  .nav-menu {
+    /* Create a horizontal scrollable tab bar */
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 4px; /* Space for scrollbar if visible */
+    -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+    /* Hide scrollbar for cleaner look */
+    scrollbar-width: none;
+  }
+  .nav-menu::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-item {
+    flex-shrink: 0; /* Prevent shrinking */
+    padding: 10px 16px;
+    background: var(--bg-surface-solid);
+    margin-right: 8px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  /* 3. Panel & Card Spacing */
+  .glass-panel,
+  .glass-card {
+    padding: 16px; /* Reduce internal padding from 24px */
+  }
+
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .panel-header .btn,
+  .panel-header .status-pill {
+    width: 100%; /* Make actions full width on mobile */
+    justify-content: center;
+  }
+
+  /* 4. Sensors Grid */
+  .grid-sensors {
+    /* Switch to smaller minimum width for 2-column layout on phones */
     grid-template-columns: 1fr;
+  }
+
+  .glass-card .sensor-header {
+    flex-direction: column; /* Stack icon and status */
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .glass-card .sensor-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+
+  .glass-card .sensor-name {
+    font-size: 1rem;
+  }
+
+  /* 5. Typography Scaling */
+  :root {
+    /* Slightly smaller radii for mobile */
+    --radius-lg: 16px;
+    --radius-md: 12px;
+  }
+
+  h1,
+  .nav-brand {
+    font-size: 1.5rem;
+  }
+  h2,
+  .panel-title {
+    font-size: 1.1rem;
+  }
+
+  /* 6. Modals */
+  .modal-content {
+    width: 95%; /* Almost full width */
+    margin: 10px auto;
+  }
+  .form-group {
+    width: 100%;
+  }
+
+  .btn {
+    width: 100%; /* Full width buttons for easier tapping */
+    padding: 12px; /* Taller touch target */
+  }
+}
+
+/* --- Touch Device Optimizations (Hover Fixes) --- */
+@media (hover: none) {
+  /* Remove hover transforms on touch to prevent "sticky" states */
+  .glass-card:hover {
+    transform: none;
+    box-shadow: var(--shadow-glass); /* Reset to default shadow */
+  }
+
+  .btn:hover {
+    transform: none;
+  }
+
+  /* Add active state for touch feedback instead */
+  .glass-card:active,
+  .btn:active {
+    transform: scale(0.98);
+    background: var(--bg-glass-hover);
   }
 }
