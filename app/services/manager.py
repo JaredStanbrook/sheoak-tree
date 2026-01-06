@@ -1,4 +1,3 @@
-# app/services/manager.py
 import os
 import logging
 from flask import current_app
@@ -58,18 +57,16 @@ class ServiceManager:
         return self._processor
 
     def get_presence_monitor(self):
-        """Lazy load the Presence Monitor (NEW)"""
+        """Lazy load the Presence Monitor using Multiprocessing"""
         if self._presence_monitor is None:
             is_reloader = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
             is_debug = os.environ.get("FLASK_DEBUG") == "1"
 
-            # Load if we are in reloader, OR if we are NOT in debug mode (Gunicorn)
             should_load = not is_debug or is_reloader
 
             if should_load:
                 try:
-
-                    logger.info("Initializing PresenceMonitor...")
+                    logger.info("Initializing PresenceMonitor (Lazy Load)...")
                     from app.services.presence_monitor import PresenceMonitor
 
                     real_app = current_app._get_current_object()
@@ -85,7 +82,10 @@ class ServiceManager:
                         community=community,
                         scan_interval=interval,
                     )
-                    logger.info("PresenceMonitor initialized successfully")
+
+                    # Start the isolated process
+                    self._presence_monitor.start()
+
                 except Exception as e:
                     logger.error(f"Failed to initialize PresenceMonitor: {e}")
             else:
@@ -98,12 +98,11 @@ class ServiceManager:
     def cleanup(self):
         """Cleanup all services"""
         if self._motion_app:
-            logger.info("Cleaning up MotionSensorApp...")
             self._motion_app.cleanup()
 
         if self._presence_monitor:
             logger.info("Cleaning up PresenceMonitor...")
-            self._presence_monitor.cleanup()
+            self._presence_monitor.stop()
 
 
 def get_services():
