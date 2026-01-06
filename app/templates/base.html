@@ -31,50 +31,93 @@
         {% with messages = get_flashed_messages(with_categories=true) %} {% if messages %} {% for
         category, message in messages %}
         <div
-          class="glass-panel"
+          class="card"
           style="background: var(--color-{{ 'primary' if category=='success' else 'danger' }}-bg); border-color: var(--color-{{ 'primary' if category=='success' else 'danger' }}); color: var(--color-{{ 'primary' if category=='success' else 'danger' }}); margin-bottom: 20px; padding: 12px 20px;">
           {{ message }}
         </div>
         {% endfor %} {% endif %} {% endwith %}
       </div>
 
-      <nav class="glass-panel glass-header">
-        <div class="nav-brand">Sheoak Control</div>
+      <nav class="card">
+        <div class="card-header">
+          <div class="nav-brand">Sheoak Control</div>
 
-        <div class="nav-menu">
+          <div class="nav-menu desktop-only">
+            <a
+              href="{{ url_for('main.index') }}"
+              class="nav-item {{ 'active' if active_page == 'live' else '' }}"
+              >Live</a
+            >
+            <a
+              href="{{ url_for('main.presence') }}"
+              class="nav-item {{ 'active' if active_page == 'presence' else '' }}"
+              >Presence</a
+            >
+            <a
+              href="{{ url_for('main.analysis') }}"
+              class="nav-item {{ 'active' if active_page == 'analysis' else '' }}"
+              >Analysis</a
+            >
+            <a
+              href="{{ url_for('main.ai_training') }}"
+              class="nav-item {{ 'active' if active_page == 'ai' else '' }}"
+              >AI Training</a
+            >
+            <a
+              href="{{ url_for('sensors.manage_sensors') }}"
+              class="nav-item {{ 'active' if active_page == 'config' else '' }}"
+              >Config</a
+            >
+          </div>
+
+          <div class="nav-controls">
+            <div class="status-pill">
+              <div class="status-dot connected"></div>
+              <span id="connection-text">Connected</span>
+            </div>
+            <button
+              id="theme-toggle"
+              class="theme-toggle-btn"
+              aria-label="Toggle dark mode"></button>
+
+            <button id="mobile-menu-toggle" class="mobile-toggle" aria-label="Menu">
+              <span class="bar"></span>
+              <span class="bar"></span>
+              <span class="bar"></span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <div id="mobile-nav-overlay" class="mobile-nav-overlay">
+        <div class="mobile-nav-content">
           <a
             href="{{ url_for('main.index') }}"
-            class="nav-item {{ 'active' if active_page == 'live' else '' }}"
-            >Live</a
-          >
+            class="mobile-link {{ 'active' if active_page == 'live' else '' }}">
+            <i data-lucide="activity"></i> Live Monitor
+          </a>
           <a
             href="{{ url_for('main.presence') }}"
-            class="nav-item {{ 'active' if active_page == 'presence' else '' }}"
-            >Presence</a
-          >
+            class="mobile-link {{ 'active' if active_page == 'presence' else '' }}">
+            <i data-lucide="users"></i> Presence
+          </a>
           <a
             href="{{ url_for('main.analysis') }}"
-            class="nav-item {{ 'active' if active_page == 'analysis' else '' }}"
-            >Analysis</a
-          >
+            class="mobile-link {{ 'active' if active_page == 'analysis' else '' }}">
+            <i data-lucide="bar-chart-2"></i> Analysis
+          </a>
           <a
             href="{{ url_for('main.ai_training') }}"
-            class="nav-item {{ 'active' if active_page == 'ai' else '' }}"
-            >AI Training</a
-          >
+            class="mobile-link {{ 'active' if active_page == 'ai' else '' }}">
+            <i data-lucide="brain-circuit"></i> AI Training
+          </a>
           <a
             href="{{ url_for('sensors.manage_sensors') }}"
-            class="nav-item {{ 'active' if active_page == 'config' else '' }}"
-            >Config</a
-          >
+            class="mobile-link {{ 'active' if active_page == 'config' else '' }}">
+            <i data-lucide="settings"></i> Configuration
+          </a>
         </div>
-
-        <div class="status-pill">
-          <div class="status-dot connected"></div>
-          <span id="connection-text">Connected</span>
-        </div>
-        <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle dark mode"></button>
-      </nav>
+      </div>
 
       <main>{% block content %}{% endblock %}</main>
     </div>

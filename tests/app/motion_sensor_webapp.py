@@ -9,7 +9,14 @@ SENSOR WIRING CONFIGURATIONS:
    - With 1k Ohm resistor in series for noise reduction
    - HIGH = motion detected, LOW = no motion
 """
-from flask import Flask, render_template, jsonify, send_file, send_from_directory, request
+from flask import (
+    Flask,
+    render_template,
+    jsonify,
+    send_file,
+    send_from_directory,
+    request,
+)
 from label_advanced import SensorSequenceProcessor
 from flask_socketio import SocketIO, emit
 import RPi.GPIO as GPIO
@@ -26,31 +33,35 @@ from typing import List, Dict, Any
 # Try to import pandas for data processing
 try:
     import pandas as pd
+
     PANDAS_AVAILABLE = True
 except ImportError:
     PANDAS_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 if not PANDAS_AVAILABLE:
     logger.warning("pandas not available. Graphing features will be limited.")
 
+
 @dataclass
 class MotionSensor:
     """Class to hold sensor information"""
+
     pin: int
     name: str
     sensor_type: str = "motion"  # "motion" or "door"
 
+
 # Flask app setup
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'motion_sensor_secret_key_2024'
-socketio = SocketIO(app, cors_allowed_origins="*", path='/sheoak/socket.io')
+app.config["SECRET_KEY"] = "motion_sensor_secret_key_2024"
+socketio = SocketIO(app, cors_allowed_origins="*", path="/sheoak/socket.io")
+
 
 class MotionSensorWebApp:
     def __init__(self, socketio_instance, debounce_ms=100):
@@ -62,25 +73,25 @@ class MotionSensorWebApp:
             MotionSensor(2, "Living Room", "motion"),
             MotionSensor(6, "Hallway", "motion"),
             MotionSensor(18, "Door", "door"),
-            MotionSensor(3, "Kitchen", "motion")
+            MotionSensor(3, "Kitchen", "motion"),
         ]
-        
+
         # Sensor states
         self.sensor_states = [False] * len(self.sensors)
         self.previous_states = [False] * len(self.sensors)
         self.last_activity = {}
-        
+
         # Debounce tracking
         self.debounce_ms = debounce_ms
         self.last_change_time = {sensor.name: datetime.min for sensor in self.sensors}
-        
+
         # Activity logging
-        self.log_file = 'sensor_activity.csv'
+        self.log_file = "sensor_activity.csv"
         self.setup_logging()
-        
+
         # Setup GPIO
         self.setup_gpio()
-        
+
         # Start monitoring thread
         self.monitoring = True
         self.monitor_thread = threading.Thread(target=self.monitor_sensors, daemon=True)
@@ -89,9 +100,18 @@ class MotionSensorWebApp:
     def setup_logging(self):
         """Initialize CSV logging file with headers if it doesn't exist"""
         if not os.path.exists(self.log_file):
-            with open(self.log_file, 'w', newline='') as csvfile:
+            with open(self.log_file, "w", newline="") as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow(['timestamp', 'sensor_name', 'sensor_type', 'gpio_pin', 'state', 'event'])
+                writer.writerow(
+                    [
+                        "timestamp",
+                        "sensor_name",
+                        "sensor_type",
+                        "gpio_pin",
+                        "state",
+                        "event",
+                    ]
+                )
             logger.info(f"Created new activity log file: {self.log_file}")
 
     def log_activity(self, sensor: MotionSensor, state: bool, event: str):
@@ -99,17 +119,19 @@ class MotionSensorWebApp:
         try:
             # Use system local time (should be set to Perth timezone)
             local_time = datetime.now()
-            
-            with open(self.log_file, 'a', newline='') as csvfile:
+
+            with open(self.log_file, "a", newline="") as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow([
-                    local_time.isoformat(),
-                    sensor.name,
-                    sensor.sensor_type,
-                    sensor.pin,
-                    1 if state else 0,
-                    event
-                ])
+                writer.writerow(
+                    [
+                        local_time.isoformat(),
+                        sensor.name,
+                        sensor.sensor_type,
+                        sensor.pin,
+                        1 if state else 0,
+                        event,
+                    ]
+                )
         except Exception as e:
             logger.error(f"Error logging activity: {e}")
 
@@ -123,7 +145,9 @@ class MotionSensorWebApp:
             # Initialize sensor pins based on sensor type
             for sensor in self.sensors:
                 GPIO.setup(sensor.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-                logger.info(f"Initialized {sensor.name} ({sensor.sensor_type}) on GPIO pin {sensor.pin}")
+                logger.info(
+                    f"Initialized {sensor.name} ({sensor.sensor_type}) on GPIO pin {sensor.pin}"
+                )
 
         except Exception as e:
             logger.error(f"Failed to setup GPIO: {e}")
@@ -139,14 +163,16 @@ class MotionSensorWebApp:
 
                 # Convert raw GPIO reading into logical state
                 if sensor.sensor_type == "door":
-                    new_state = (raw_reading == GPIO.HIGH)  # HIGH = door open
+                    new_state = raw_reading == GPIO.HIGH  # HIGH = door open
                 else:
-                    new_state = (raw_reading == GPIO.HIGH)  # HIGH = motion detected
+                    new_state = raw_reading == GPIO.HIGH  # HIGH = motion detected
 
                 # Debounce check
                 if new_state != self.previous_states[i]:
                     now = datetime.now()
-                    elapsed_ms = (now - self.last_change_time[sensor.name]).total_seconds() * 1000
+                    elapsed_ms = (
+                        now - self.last_change_time[sensor.name]
+                    ).total_seconds() * 1000
                     if elapsed_ms >= self.debounce_ms:
                         # Accept state change
                         self.previous_states[i] = new_state
@@ -158,23 +184,33 @@ class MotionSensorWebApp:
 
                         # Log + emit
                         event = (
-                            "Motion Detected" if sensor.sensor_type == "motion" and new_state else
-                            "Motion Cleared" if sensor.sensor_type == "motion" else
-                            "Door Opened" if sensor.sensor_type == "door" and new_state else
-                            "Door Closed"
+                            "Motion Detected"
+                            if sensor.sensor_type == "motion" and new_state
+                            else (
+                                "Motion Cleared"
+                                if sensor.sensor_type == "motion"
+                                else (
+                                    "Door Opened"
+                                    if sensor.sensor_type == "door" and new_state
+                                    else "Door Closed"
+                                )
+                            )
                         )
                         logger.info(f"{event} - {sensor.name}")
                         self.log_activity(sensor, new_state, event)
                         # Emit real-time update via WebSocket
-                        self.socketio.emit('sensor_update', {
-                            'sensor_name': sensor.name,
-                            'sensor_index': i,
-                            'sensor_type': sensor.sensor_type,
-                            'value': 1 if new_state else 0,
-                            'event': event,
-                            'timestamp': datetime.now().isoformat(),
-                            'all_sensors': self.get_sensor_data()
-                        })
+                        self.socketio.emit(
+                            "sensor_update",
+                            {
+                                "sensor_name": sensor.name,
+                                "sensor_index": i,
+                                "sensor_type": sensor.sensor_type,
+                                "value": 1 if new_state else 0,
+                                "event": event,
+                                "timestamp": datetime.now().isoformat(),
+                                "all_sensors": self.get_sensor_data(),
+                            },
+                        )
 
             except Exception as e:
                 logger.error(f"Error reading sensor {sensor.name}: {e}")
@@ -184,73 +220,87 @@ class MotionSensorWebApp:
     def get_sensor_data(self) -> List[Dict[str, Any]]:
         """Get current sensor data"""
         data = []
-        
+
         for i, sensor in enumerate(self.sensors):
             last_activity = self.last_activity.get(sensor.name)
-            
+
             # Determine status based on sensor type
             if sensor.sensor_type == "motion":
-                status = 'Motion Detected' if self.sensor_states[i] else 'No Motion'
+                status = "Motion Detected" if self.sensor_states[i] else "No Motion"
             elif sensor.sensor_type == "door":
-                status = 'Door Open' if self.sensor_states[i] else 'Door Closed'
+                status = "Door Open" if self.sensor_states[i] else "Door Closed"
             else:
-                status = 'Active' if self.sensor_states[i] else 'Inactive'
+                status = "Active" if self.sensor_states[i] else "Inactive"
 
-            data.append({
-                'name': sensor.name,
-                'type': sensor.sensor_type,
-                'value': 1 if self.sensor_states[i] else 0,
-                'gpio_pin': sensor.pin,
-                'status': status,
-                'last_activity': last_activity.isoformat() if last_activity else None
-            })
-        
+            data.append(
+                {
+                    "name": sensor.name,
+                    "type": sensor.sensor_type,
+                    "value": 1 if self.sensor_states[i] else 0,
+                    "gpio_pin": sensor.pin,
+                    "status": status,
+                    "last_activity": (
+                        last_activity.isoformat() if last_activity else None
+                    ),
+                }
+            )
+
         return data
 
-    def get_frequency_data(self, hours: int = 24, interval_minutes: int = 30) -> Dict[str, Any]:
+    def get_frequency_data(
+        self, hours: int = 24, interval_minutes: int = 30
+    ) -> Dict[str, Any]:
         """Get frequency-based activity data for graphing using system local time"""
         try:
             if not os.path.exists(self.log_file):
-                return {'sensors': {}, 'timestamps': [], 'interval_minutes': interval_minutes}
+                return {
+                    "sensors": {},
+                    "timestamps": [],
+                    "interval_minutes": interval_minutes,
+                }
 
             # Calculate time range using system local time
             local_now = datetime.now()
             cutoff_time = local_now - timedelta(hours=hours)
-            
+
             # Read and process data
             activity_data = []
-            
+
             if PANDAS_AVAILABLE:
                 # Use pandas for efficient processing
                 df = pd.read_csv(self.log_file)
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
-                
+                df["timestamp"] = pd.to_datetime(df["timestamp"])
+
                 # Filter by time range
-                df = df[df['timestamp'] >= cutoff_time]
-                
+                df = df[df["timestamp"] >= cutoff_time]
+
                 # Only count activation events (state = 1)
-                df = df[df['state'] == 1]
-                
-                activity_data = df.to_dict('records')
+                df = df[df["state"] == 1]
+
+                activity_data = df.to_dict("records")
             else:
                 # Fallback: manual processing
-                with open(self.log_file, 'r') as csvfile:
+                with open(self.log_file, "r") as csvfile:
                     reader = csv.DictReader(csvfile)
                     for row in reader:
                         try:
                             # Parse timestamp
-                            timestamp = datetime.fromisoformat(row['timestamp'].replace('Z', '+00:00'))
+                            timestamp = datetime.fromisoformat(
+                                row["timestamp"].replace("Z", "+00:00")
+                            )
                             if timestamp.tzinfo is not None:
                                 # Convert timezone-aware to naive local time
                                 timestamp = timestamp.replace(tzinfo=None)
-                            
+
                             # Only include recent data and activation events
-                            if timestamp >= cutoff_time and int(row['state']) == 1:
-                                activity_data.append({
-                                    'timestamp': timestamp,
-                                    'sensor_name': row['sensor_name'],
-                                    'sensor_type': row['sensor_type']
-                                })
+                            if timestamp >= cutoff_time and int(row["state"]) == 1:
+                                activity_data.append(
+                                    {
+                                        "timestamp": timestamp,
+                                        "sensor_name": row["sensor_name"],
+                                        "sensor_type": row["sensor_type"],
+                                    }
+                                )
                         except (ValueError, KeyError) as e:
                             logger.warning(f"Error parsing row: {e}")
                             continue
@@ -259,46 +309,54 @@ class MotionSensorWebApp:
             current_time = cutoff_time
             end_time = local_now
             time_intervals = []
-            
+
             while current_time < end_time:
                 interval_end = current_time + timedelta(minutes=interval_minutes)
-                time_intervals.append({
-                    'start': current_time,
-                    'end': min(interval_end, end_time),
-                    'label': current_time.strftime('%I:%M %p')  # 12-hour format
-                })
+                time_intervals.append(
+                    {
+                        "start": current_time,
+                        "end": min(interval_end, end_time),
+                        "label": current_time.strftime("%I:%M %p"),  # 12-hour format
+                    }
+                )
                 current_time = interval_end
 
             # Count activity frequency for each sensor in each interval
             sensor_names = [sensor.name for sensor in self.sensors]
             frequency_data = {sensor: [] for sensor in sensor_names}
             timestamps = []
-            
+
             for interval in time_intervals:
-                timestamps.append(interval['label'])
-                
+                timestamps.append(interval["label"])
+
                 # Count activations for each sensor in this interval
                 for sensor_name in sensor_names:
                     count = 0
                     for event in activity_data:
-                        event_time = event['timestamp']
-                        if (interval['start'] <= event_time < interval['end'] and 
-                            event['sensor_name'] == sensor_name):
+                        event_time = event["timestamp"]
+                        if (
+                            interval["start"] <= event_time < interval["end"]
+                            and event["sensor_name"] == sensor_name
+                        ):
                             count += 1
-                    
+
                     frequency_data[sensor_name].append(count)
 
             return {
-                'sensors': frequency_data,
-                'timestamps': timestamps,
-                'interval_minutes': interval_minutes,
-                'total_intervals': len(timestamps),
-                'timezone': 'Local Time (Perth)'
+                "sensors": frequency_data,
+                "timestamps": timestamps,
+                "interval_minutes": interval_minutes,
+                "total_intervals": len(timestamps),
+                "timezone": "Local Time (Perth)",
             }
 
         except Exception as e:
             logger.error(f"Error getting frequency data: {e}")
-            return {'sensors': {}, 'timestamps': [], 'interval_minutes': interval_minutes}
+            return {
+                "sensors": {},
+                "timestamps": [],
+                "interval_minutes": interval_minutes,
+            }
 
     def get_activity_data(self, hours: int = 24) -> List[Dict[str, Any]]:
         """Get activity data for basic activity log using system local time"""
@@ -309,48 +367,52 @@ class MotionSensorWebApp:
             # Calculate cutoff time using system local time
             local_now = datetime.now()
             cutoff_time = local_now - timedelta(hours=hours)
-            
+
             if not PANDAS_AVAILABLE:
                 # Fallback: read CSV manually and filter last N entries
                 activity_data = []
-                with open(self.log_file, 'r') as csvfile:
+                with open(self.log_file, "r") as csvfile:
                     reader = csv.DictReader(csvfile)
                     for row in reader:
                         try:
-                            timestamp = datetime.fromisoformat(row['timestamp'].replace('Z', '+00:00'))
+                            timestamp = datetime.fromisoformat(
+                                row["timestamp"].replace("Z", "+00:00")
+                            )
                             if timestamp.tzinfo is not None:
                                 # Convert timezone-aware to naive local time
                                 timestamp = timestamp.replace(tzinfo=None)
-                            
+
                             if timestamp >= cutoff_time:
-                                activity_data.append({
-                                    'timestamp': timestamp.isoformat(),
-                                    'sensor_name': row['sensor_name'],
-                                    'sensor_type': row['sensor_type'],
-                                    'gpio_pin': int(row['gpio_pin']),
-                                    'state': int(row['state']),
-                                    'event': row['event']
-                                })
+                                activity_data.append(
+                                    {
+                                        "timestamp": timestamp.isoformat(),
+                                        "sensor_name": row["sensor_name"],
+                                        "sensor_type": row["sensor_type"],
+                                        "gpio_pin": int(row["gpio_pin"]),
+                                        "state": int(row["state"]),
+                                        "event": row["event"],
+                                    }
+                                )
                         except (ValueError, KeyError):
                             continue
-                
+
                 # Sort by timestamp (newest first)
-                activity_data.sort(key=lambda x: x['timestamp'], reverse=True)
+                activity_data.sort(key=lambda x: x["timestamp"], reverse=True)
                 return activity_data[-1000:]  # Return last 1000 entries
 
             # Use pandas if available
             df = pd.read_csv(self.log_file)
             # Convert timestamp to datetime
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+
             # Filter by time range
-            df = df[df['timestamp'] >= cutoff_time]
-            
+            df = df[df["timestamp"] >= cutoff_time]
+
             # Convert timestamps to ISO strings for JSON serialization
-            df['timestamp'] = df['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S')
-            
+            df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%S")
+
             # Convert to list of dictionaries for JSON serialization
-            return df.to_dict('records')
+            return df.to_dict("records")
 
         except Exception as e:
             logger.error(f"Error getting activity data: {e}")
@@ -359,7 +421,7 @@ class MotionSensorWebApp:
     def monitor_sensors(self):
         """Background thread to continuously monitor sensors"""
         logger.info("Starting sensor monitoring thread...")
-        
+
         while self.monitoring:
             try:
                 self.read_sensors()
@@ -377,116 +439,126 @@ class MotionSensorWebApp:
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
 
+
 # Create global instance
 sensor_monitor = MotionSensorWebApp(socketio)
 processor = SensorSequenceProcessor("sensor_activity.csv")
 
-@app.route('/')
+
+@app.route("/")
 def index():
     """Main page"""
-    return render_template('index.html')
-    
-@app.route('/api/sensors')
+    return render_template("index.html")
+
+
+@app.route("/api/sensors")
 def api_sensors():
     """API endpoint to get current sensor states"""
-    return jsonify({
-        'sensors': sensor_monitor.get_sensor_data(),
-        'timestamp': datetime.now().isoformat()
-    })
+    return jsonify(
+        {
+            "sensors": sensor_monitor.get_sensor_data(),
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
 
-@app.route('/api/activity/<int:hours>')
+
+@app.route("/api/activity/<int:hours>")
 def api_activity(hours):
     """API endpoint to get activity data for activity log"""
     activity_data = sensor_monitor.get_activity_data(hours)
-    return jsonify({
-        'activity': activity_data,
-        'timestamp': datetime.now().isoformat(),
-        'hours': hours
-    })
+    return jsonify(
+        {
+            "activity": activity_data,
+            "timestamp": datetime.now().isoformat(),
+            "hours": hours,
+        }
+    )
 
-@app.route('/api/frequency/<int:hours>/<int:interval>')
+
+@app.route("/api/frequency/<int:hours>/<int:interval>")
 def api_frequency(hours, interval):
     """API endpoint to get frequency data for graphs"""
     frequency_data = sensor_monitor.get_frequency_data(hours, interval)
-    return jsonify({
-        'frequency': frequency_data,
-        'timestamp': datetime.now().isoformat(),
-        'hours': hours,
-        'interval_minutes': interval
-    })
+    return jsonify(
+        {
+            "frequency": frequency_data,
+            "timestamp": datetime.now().isoformat(),
+            "hours": hours,
+            "interval_minutes": interval,
+        }
+    )
 
-@app.route('/download/activity')
+
+@app.route("/download/activity")
 def download_activity():
     """Download complete activity log as CSV"""
     if os.path.exists(sensor_monitor.log_file):
         return send_file(
-            sensor_monitor.log_file, 
-            as_attachment=True, 
-            download_name=f'sensor_activity_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            sensor_monitor.log_file,
+            as_attachment=True,
+            download_name=f'sensor_activity_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv',
         )
     else:
-        return jsonify({'error': 'Activity log file not found'}), 404
+        return jsonify({"error": "Activity log file not found"}), 404
+
 
 # ============ SEQUENCE REVIEW ROUTES ============
 
-@app.route('/api/sequences/process', methods=['POST'])
+
+@app.route("/api/sequences/process", methods=["POST"])
 def process_sequences():
     """Process sequences (full or incremental)"""
     try:
         data = request.json
-        window_size = data.get('window_size', 60)
-        sequence_gap_threshold = data.get('sequence_gap_threshold', 300)
-        incremental = data.get('incremental', False)
-        
+        window_size = data.get("window_size", 60)
+        sequence_gap_threshold = data.get("sequence_gap_threshold", 300)
+        incremental = data.get("incremental", False)
+
         # Process sequences
         result = processor.process_sequences(
             window_size=window_size,
             sequence_gap_threshold=sequence_gap_threshold,
-            incremental=incremental
+            incremental=incremental,
         )
-        
+
         # Save state after processing
         processor.save_persistent_state()
-        
-        return jsonify({
-            'success': True,
-            'result': result,
-            'message': f'{"Incremental" if incremental else "Full"} processing completed',
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
-@app.route('/api/sequences/list')
+        return jsonify(
+            {
+                "success": True,
+                "result": result,
+                "message": f'{"Incremental" if incremental else "Full"} processing completed',
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/sequences/list")
 def get_sequences_list():
     """Get paginated list of sequences"""
     try:
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
-        
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 20, type=int)
+
         # Load state if not already loaded
         try:
             processor.load_persistent_state()
         except:
             pass  # State might already be loaded
-        
+
         result = processor.get_sequence_list(page=page, per_page=per_page)
         print(result)
-        return jsonify({
-            'success': True,
-            **result,
-            'timestamp': datetime.now().isoformat()
-        })
+        return jsonify(
+            {"success": True, **result, "timestamp": datetime.now().isoformat()}
+        )
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/sequences/<int:sequence_id>')
+
+@app.route("/api/sequences/<int:sequence_id>")
 def get_sequence_detail(sequence_id):
     """Get detailed information for a specific sequence"""
     try:
@@ -495,66 +567,70 @@ def get_sequence_detail(sequence_id):
             processor.load_persistent_state()
         except:
             pass
-        
-        sequence = processor.get_sequence(sequence_id)
-        
-        if sequence:
-            return jsonify({
-                'success': True,
-                'sequence': sequence,
-                'timestamp': datetime.now().isoformat()
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'Sequence {sequence_id} not found'
-            }), 404
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
-@app.route('/api/sequences/<int:sequence_id>/label', methods=['PUT'])
+        sequence = processor.get_sequence(sequence_id)
+
+        if sequence:
+            return jsonify(
+                {
+                    "success": True,
+                    "sequence": sequence,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
+        else:
+            return (
+                jsonify(
+                    {"success": False, "error": f"Sequence {sequence_id} not found"}
+                ),
+                404,
+            )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/sequences/<int:sequence_id>/label", methods=["PUT"])
 def update_sequence_label(sequence_id):
     """Update label for a specific sequence"""
     try:
         data = request.json
-        label = data.get('label')
-        
+        label = data.get("label")
+
         if not label:
-            return jsonify({
-                'success': False,
-                'error': 'Label is required'
-            }), 400
-        
+            return jsonify({"success": False, "error": "Label is required"}), 400
+
         # Load state if not already loaded
         try:
             processor.load_persistent_state()
         except:
             pass
-        
+
         success = processor.update_sequence_label(sequence_id, label)
-        
+
         if success:
             processor.save_persistent_state()
-            return jsonify({
-                'success': True,
-                'message': f'Label updated to "{label}" for sequence {sequence_id}',
-                'timestamp': datetime.now().isoformat()
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f'Label updated to "{label}" for sequence {sequence_id}',
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
         else:
-            return jsonify({
-                'success': False,
-                'error': f'Failed to update label for sequence {sequence_id}'
-            }), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Failed to update label for sequence {sequence_id}",
+                    }
+                ),
+                400,
+            )
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/sequences/statistics')
+
+@app.route("/api/sequences/statistics")
 def get_label_statistics():
     """Get label statistics"""
     try:
@@ -563,80 +639,95 @@ def get_label_statistics():
             processor.load_persistent_state()
         except:
             pass
-        
-        stats = processor.get_label_statistics()
-        
-        return jsonify({
-            'success': True,
-            'statistics': stats,
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
-@app.route('/api/sequences/state/load', methods=['POST'])
+        stats = processor.get_label_statistics()
+
+        return jsonify(
+            {
+                "success": True,
+                "statistics": stats,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/sequences/state/load", methods=["POST"])
 def load_processor_state():
     """Load processor state"""
     try:
         processor.load_persistent_state()
         stats = processor.get_label_statistics()
-        
-        return jsonify({
-            'success': True,
-            'message': 'State loaded successfully',
-            'statistics': stats,
-            'timestamp': datetime.now().isoformat()
-        })
+
+        return jsonify(
+            {
+                "success": True,
+                "message": "State loaded successfully",
+                "statistics": stats,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ============ SOCKET.IO HANDLERS ============
 
-@socketio.on('connect')
+
+@socketio.on("connect")
 def handle_connect():
     """Handle client connection"""
-    logger.info('Client connected')
-    emit('sensor_update', {
-        'all_sensors': sensor_monitor.get_sensor_data(),
-        'timestamp': datetime.now().isoformat()
-    })
+    logger.info("Client connected")
+    emit(
+        "sensor_update",
+        {
+            "all_sensors": sensor_monitor.get_sensor_data(),
+            "timestamp": datetime.now().isoformat(),
+        },
+    )
 
-@socketio.on('disconnect')
+
+@socketio.on("disconnect")
 def handle_disconnect():
     """Handle client disconnection"""
-    logger.info('Client disconnected')
+    logger.info("Client disconnected")
 
-@socketio.on('request_activity_data')
+
+@socketio.on("request_activity_data")
 def handle_activity_request(data):
     """Handle request for activity data"""
-    hours = data.get('hours', 24)
+    hours = data.get("hours", 24)
     activity_data = sensor_monitor.get_activity_data(hours)
-    emit('activity_data', {
-        'activity': activity_data,
-        'hours': hours,
-        'timestamp': datetime.now().isoformat()
-    })
+    emit(
+        "activity_data",
+        {
+            "activity": activity_data,
+            "hours": hours,
+            "timestamp": datetime.now().isoformat(),
+        },
+    )
 
-@socketio.on('request_frequency_data')
+
+@socketio.on("request_frequency_data")
 def handle_frequency_request(data):
     """Handle request for frequency data"""
-    hours = data.get('hours', 24)
-    interval = data.get('interval', 30)
+    hours = data.get("hours", 24)
+    interval = data.get("interval", 30)
     frequency_data = sensor_monitor.get_frequency_data(hours, interval)
-    emit('frequency_data', {
-        'frequency': frequency_data,
-        'hours': hours,
-        'interval': interval,
-        'timestamp': datetime.now().isoformat()
-    })
+    emit(
+        "frequency_data",
+        {
+            "frequency": frequency_data,
+            "hours": hours,
+            "interval": interval,
+            "timestamp": datetime.now().isoformat(),
+        },
+    )
+
+
 # HTML Template (embedded for simplicity)
-HTML_TEMPLATE = '''
+HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -919,7 +1010,7 @@ HTML_TEMPLATE = '''
             width: 120px;
         }
         
-        .stats-panel {
+        .stats-card {
             background: rgba(255, 255, 255, 0.05);
             border-radius: 10px;
             padding: 20px;
@@ -1245,7 +1336,7 @@ HTML_TEMPLATE = '''
                     </button>
                 </div>
                 
-                <div class="stats-panel" id="statsPanel">
+                <div class="stats-card" id="statscard">
                     <div class="stat-item">
                         <div class="stat-value" id="totalSequences">-</div>
                         <div class="stat-label">Total Sequences</div>
@@ -1660,7 +1751,7 @@ HTML_TEMPLATE = '''
             frequencyChart.data.datasets = datasets;
             frequencyChart.update('none'); // Skip animation for real-time updates
             
-            // Update info panel
+            // Update info card
             const totalActivations = Object.values(sensors).reduce((total, sensorData) => 
                 total + sensorData.reduce((sum, count) => sum + count, 0), 0);
             
@@ -1997,19 +2088,24 @@ HTML_TEMPLATE = '''
     </script>
 </body>
 </html>
-'''
+"""
 
 # Create templates directory and save template
 import os
-os.makedirs('templates', exist_ok=True)
-with open('templates/index.html', 'w') as f:
+
+os.makedirs("templates", exist_ok=True)
+with open("templates/index.html", "w") as f:
     f.write(HTML_TEMPLATE)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
-        logger.info("Starting Enhanced Motion Sensor Web App with Frequency Analysis...")
+        logger.info(
+            "Starting Enhanced Motion Sensor Web App with Frequency Analysis..."
+        )
         logger.info("New Features:")
-        logger.info("- Frequency-based activity analysis with configurable time intervals")
+        logger.info(
+            "- Frequency-based activity analysis with configurable time intervals"
+        )
         logger.info("- Perth timezone support with 12-hour time format")
         logger.info("- Enhanced graphing with activity summaries")
         logger.info("- Real-time chart updates")
@@ -2021,7 +2117,9 @@ if __name__ == '__main__':
             logger.warning("Frequency analysis will use fallback mode")
 
         # Run the Flask-SocketIO app
-        socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
+        socketio.run(
+            app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True
+        )
 
     except KeyboardInterrupt:
         logger.info("Shutting down web app...")

@@ -44,76 +44,82 @@ class DashboardController {
 
   renderSensorGrid(sensors) {
     if (!this.elements.grid) return;
+
+    // 1. Update Summary
     const activeCount = sensors.filter((s) => s.value === 1 && s.type !== "relay").length;
     this.updateSystemSummary(activeCount);
 
+    // 2. Render Grid
     this.elements.grid.innerHTML = sensors
       .map((sensor) => {
         const isActive = sensor.value === 1;
+
+        // Normalize type
         let type = (sensor.type || "motion").toLowerCase();
         if (type.includes("contact")) type = "door";
         if (type.includes("pir")) type = "motion";
 
-        // --- RELAY CARD ---
-        if (type === "relay") {
-          const activeClass = isActive ? "active-relay" : "";
-          const btnLabel = isActive ? "Turn Off" : "Turn On";
-          // We add the 'active-relay' class to the main card if it is active
-          return `
-            <div class="glass-card ${activeClass}" id="card-${sensor.id}">
-                <div class="sensor-header">
-                   <div>
-                      <div class="sensor-name">${sensor.name}</div>
-                      <div class="sensor-meta">${isActive ? "Active" : "Off"}</div>
-                   </div>
-                   <div class="sensor-icon">💡</div>
-                </div>
-                <div style="margin-top: auto;">
-                    <button class="btn btn-sm btn-block ${
-                      isActive ? "btn-primary" : "btn-secondary"
-                    }" 
-                        onclick="window.dashboard.toggleRelay(${sensor.id})">${btnLabel}</button>
-                </div>
-            </div>`;
-        }
-
-        // --- SENSOR CARD (Motion/Door) ---
+        let statusText = "Secure";
         let iconHtml = "";
-        if (type === "door") {
-          iconHtml = isActive ? CONFIG.icons.doorActive : CONFIG.icons.doorInactive;
-        } else {
-          iconHtml = isActive ? CONFIG.icons.motionActive : CONFIG.icons.motionInactive;
-        }
-        const activeClass = isActive ? `active-${type}` : "";
-        const statusText = isActive ? (type === "door" ? "Open" : "Detected") : "Secure";
+        let footerHtml = "";
 
+        // 3. Switch logic for Text, Icon, and Footer content
+        switch (type) {
+          case "relay":
+            statusText = isActive ? "Active" : "Off";
+            iconHtml = "💡";
+
+            const btnLabel = isActive ? "Turn Off" : "Turn On";
+            const btnClass = isActive ? "btn-primary" : "btn-secondary";
+
+            footerHtml = `
+          <button class="btn btn-sm btn-block ${btnClass}" 
+            onclick="window.dashboard.toggleRelay(${sensor.id})">
+            ${btnLabel}
+          </button>`;
+            break;
+
+          case "door":
+            statusText = isActive ? "Open" : "Secure";
+            iconHtml = isActive ? CONFIG.icons.doorActive : CONFIG.icons.doorInactive;
+          // Fallthrough to default for footer
+
+          default: // Motion & others
+            if (type !== "door") {
+              statusText = isActive ? "Detected" : "Secure";
+              iconHtml = isActive ? CONFIG.icons.motionActive : CONFIG.icons.motionInactive;
+            }
+
+            footerHtml = `
+          <div style="display:flex; justify-content:space-between; font-size: 0.8rem;" class="text-muted">
+            <span>Last Event</span>
+            <span>${Utils.timeAgo(sensor.last_activity)}</span>
+          </div>`;
+            break;
+        }
+
+        // 4. Unified Card Template
         return `
-            <div class="glass-card ${activeClass}" id="card-${sensor.id}">
-                <div class="sensor-header">
-                    <div>
-                        <div class="sensor-name">${sensor.name}</div>
-                        <div class="sensor-meta" style="color: ${
-                          isActive ? "inherit" : "var(--color-text-muted)"
-                        }; font-weight: ${isActive ? "600" : "400"}">
-                            ${statusText}
-                        </div>
-                    </div>
-                    <div class="sensor-icon">${iconHtml}</div>
-                </div>
-                
-                <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.05);">
-                    <div style="display:flex; justify-content:space-between; font-size: 0.8rem;" class="text-muted">
-                        <span>Last Event</span>
-                        <span>${Utils.timeAgo(sensor.last_activity)}</span>
-                    </div>
-                </div>
-            </div>`;
+      <div class="card ${isActive ? "active" : ""}" id="card-${sensor.id}">
+        <div class="sensor-header">
+          <div>
+            <div class="sensor-name">${sensor.name}</div>
+            <div class="sensor-meta" style="font-weight: ${isActive ? "600" : "400"}">
+              ${statusText}
+            </div>
+          </div>
+          <div class="sensor-icon">${iconHtml}</div>
+        </div>
+        
+        <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.05);">
+            ${footerHtml}
+        </div>
+      </div>`;
       })
       .join("");
+
     if (window.lucide) {
-      window.lucide.createIcons({
-        root: this.elements.grid,
-      });
+      window.lucide.createIcons({ root: this.elements.grid });
     }
   }
 
@@ -121,7 +127,7 @@ class DashboardController {
     if (!this.elements.summary) return;
     if (activeCount === 0) {
       this.elements.summary.innerHTML = `
-        <div class="glass-panel" style="padding: 16px; display: flex; align-items: center; gap: 16px;">
+        <div class="card" style="padding: 16px; display: flex; align-items: center; gap: 16px;">
             <div style="background: rgba(16, 185, 129, 0.1); color: #059669; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">✓</div>
             <div>
                 <div style="font-weight: 600;">System Secure</div>
@@ -130,7 +136,7 @@ class DashboardController {
         </div>`;
     } else {
       this.elements.summary.innerHTML = `
-        <div class="glass-panel" style="padding: 16px; display: flex; align-items: center; gap: 16px; border: 1px solid var(--color-danger);">
+        <div class="card" style="padding: 16px; display: flex; align-items: center; gap: 16px; border: 1px solid var(--color-danger);">
             <div style="background: var(--color-danger-bg); color: var(--color-danger); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">!</div>
             <div>
                 <div style="font-weight: 600; color: var(--color-danger);">Activity Detected</div>

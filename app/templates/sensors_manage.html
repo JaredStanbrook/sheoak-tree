@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="glass-panel" style="margin-bottom: 20px;">
-    <div class="panel-header">
-        <h2 class="panel-title">Sensor Configuration</h2>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Sensor Configuration</h2>
         <a href="/" class="btn btn-sm btn-ghost">Back to Dashboard</a>
     </div>
 </div>
 
 <div class="layout-grid">
-    <div class="glass-panel">
-        <div class="panel-header">
-            <h3 class="panel-title">{{ 'Edit Sensor' if edit_sensor else 'Add Sensor' }}</h3>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">{{ 'Edit Sensor' if edit_sensor else 'Add Sensor' }}</h3>
             {% if edit_sensor %}
                 <a href="{{ url_for('sensors.manage_sensors') }}" class="btn btn-sm btn-ghost">Cancel</a>
             {% endif %}
@@ -48,7 +48,7 @@
         </form>
     </div>
 
-    <div class="glass-panel">
+    <div class="card">
         <div class="table-container">
             <table class="glass-table">
                 <thead>

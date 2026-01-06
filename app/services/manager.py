@@ -62,13 +62,13 @@ class ServiceManager:
         if self._presence_monitor is None:
             is_reloader = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
             is_debug = os.environ.get("FLASK_DEBUG") == "1"
-            is_production = os.environ.get("FLASK_ENV") == "production"
 
             # Load if we are in reloader, OR if we are NOT in debug mode (Gunicorn)
-            should_load = is_reloader or is_debug or is_production
+            should_load = not is_debug or is_reloader
 
             if should_load:
                 try:
+
                     logger.info("Initializing PresenceMonitor...")
                     from app.services.presence_monitor import PresenceMonitor
 
