@@ -1,7 +1,7 @@
 /**
  * static/js/dashboard.js
  */
-import { socket, Utils, CONFIG } from "./core.js";
+import { Utils, CONFIG } from "./core.js";
 
 class DashboardController {
   constructor() {
@@ -18,11 +18,16 @@ class DashboardController {
   }
 
   bindEvents() {
-    socket.on("sensor_update", (data) => {
-      if (data.all_sensors) this.renderSensorGrid(data.all_sensors);
-      else this.refreshGrid();
+    // CHANGED: Listen to window events dispatched by core.js
+    window.addEventListener("sensor_update", (e) => {
+      // SSE sends one event at a time, so we refresh grid or handle single update
+      // For simplicity, we just refresh the grid state
+      this.refreshGrid();
     });
-    socket.on("presence_update", () => this.loadWhoIsHome());
+
+    window.addEventListener("presence_update", () => {
+      this.loadWhoIsHome();
+    });
   }
 
   async refreshGrid() {
@@ -100,7 +105,7 @@ class DashboardController {
 
         // 4. Unified Card Template
         return `
-      <div class="card ${isActive ? "active" : ""}" id="card-${sensor.id}">
+      <div class="card ${isActive ? "is-active" : ""}" id="card-${sensor.id}">
         <div class="sensor-header">
           <div>
             <div class="sensor-name">${sensor.name}</div>

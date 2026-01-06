@@ -181,6 +181,9 @@ footer {
   gap: 24px;
   align-items: start;
 }
+.layout-grid .card {
+  margin-bottom: 0;
+}
 
 /* ========================================================================
    Component: Glass Foundation
@@ -243,17 +246,17 @@ footer {
 }
 
 /* --- Sensor State: Motion --- */
-.card:active {
+.card.is-active {
   border-color: rgba(239, 68, 68, 0.3); /* Preserving original values */
   box-shadow: 0 10px 40px -10px rgba(239, 68, 68, 0.3), inset 0 0 20px rgba(239, 68, 68, 0.05);
   background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.9), rgba(254, 226, 226, 0.5));
 }
-.card:active .sensor-icon {
+.card.is-active .sensor-icon {
   background: var(--grad-danger);
   color: white;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
-.card:active .sensor-state {
+.card.is-active .sensor-state {
   background: var(--color-danger);
   color: #fff;
 }
@@ -263,6 +266,9 @@ footer {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 20px;
+}
+.grid-sensors .card {
+  margin-bottom: 0;
 }
 
 /* General Sensor Helpers */
@@ -290,6 +296,9 @@ footer {
 nav.card {
   margin-top: 20px;
   flex-direction: row;
+}
+nav .card-header {
+  margin-bottom: 0;
 }
 .nav-brand {
   font-size: 1.25rem;
@@ -341,128 +350,6 @@ nav.card {
   display: none;
 }
 
-/* 2. Mobile Breakpoint */
-@media (max-width: 768px) {
-  /* Hide Desktop Menu */
-  .desktop-only {
-    display: none;
-  }
-
-  /* Hamburger Button Style */
-  .mobile-toggle {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    width: 40px;
-    height: 40px;
-    padding: 10px 8px;
-    background: var(--bg-glass-input);
-    border: var(--border-glass);
-    border-radius: 12px;
-    cursor: pointer;
-    z-index: 200; /* Above overlay */
-    transition: var(--transition);
-  }
-
-  .mobile-toggle .bar {
-    width: 100%;
-    height: 2px;
-    background-color: var(--color-text-main);
-    border-radius: 2px;
-    transition: all 0.3s ease-in-out;
-    transform-origin: center;
-  }
-
-  /* Hamburger Animation State */
-  .mobile-toggle.is-active {
-    background: var(--color-primary-bg);
-    border-color: var(--color-primary);
-  }
-
-  .mobile-toggle.is-active .bar:nth-child(1) {
-    transform: translateY(7px) rotate(45deg);
-    background-color: var(--bs-primary);
-  }
-  .mobile-toggle.is-active .bar:nth-child(2) {
-    opacity: 0;
-  }
-  .mobile-toggle.is-active .bar:nth-child(3) {
-    transform: translateY(-7px) rotate(-45deg);
-    background-color: var(--bs-primary);
-  }
-
-  /* 3. Fullscreen Glass Overlay */
-  .mobile-nav-overlay {
-    display: flex; /* Hidden via opacity/visibility usually, but we toggle class */
-    position: fixed;
-    inset: 0; /* Full screen */
-    background: rgba(255, 255, 255, 0.6); /* Light Mode fallback */
-    backdrop-filter: blur(20px); /* Heavy blur for glass effect */
-    -webkit-backdrop-filter: blur(20px);
-    z-index: 150;
-    align-items: center;
-    justify-content: center;
-
-    /* Animation Initial State */
-    opacity: 0;
-    visibility: hidden;
-    transform: scale(0.95);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  [data-theme="dark"] .mobile-nav-overlay {
-    background: rgba(15, 23, 42, 0.7); /* Dark Mode Glass */
-  }
-
-  /* Overlay Active State */
-  .mobile-nav-overlay.is-open {
-    opacity: 1;
-    visibility: visible;
-    transform: scale(1);
-  }
-
-  /* 4. Mobile Links */
-  .mobile-nav-content {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    width: 100%;
-    max-width: 300px;
-    text-align: center;
-  }
-
-  .mobile-link {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--color-text-muted);
-    padding: 16px;
-    border-radius: var(--radius-md);
-    transition: var(--transition);
-  }
-
-  .mobile-link i {
-    width: 24px;
-    height: 24px;
-  }
-
-  .mobile-link:hover,
-  .mobile-link:active {
-    background: var(--bg-surface-highlight);
-    color: var(--color-text-main);
-    transform: scale(1.05);
-  }
-
-  .mobile-link.active {
-    color: var(--color-primary);
-    background: var(--bg-surface-solid);
-    box-shadow: var(--shadow-glass);
-    border: 1px solid var(--border-subtle);
-  }
-}
 /* ========================================================================
    Component: Status Pills & Theme Toggle
    ======================================================================== */
@@ -477,11 +364,13 @@ nav.card {
   border: var(--border-glass);
   font-size: 0.8rem;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .status-dot {
-  width: 8px;
-  height: 8px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   background-color: var(--color-danger);
 }
@@ -866,6 +755,141 @@ nav.card {
   }
 }
 
+@media (max-width: 900px) {
+  /* Hide Desktop Menu */
+  .desktop-only {
+    display: none;
+  }
+  /* Hamburger Button Style */
+  .mobile-toggle {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 40px;
+    height: 40px;
+    padding: 10px 8px;
+    background: var(--bg-glass-input);
+    border: var(--border-glass);
+    border-radius: 12px;
+    cursor: pointer;
+    z-index: 200; /* Above overlay */
+    transition: var(--transition);
+  }
+
+  .mobile-toggle .bar {
+    width: 100%;
+    height: 2px;
+    background-color: var(--color-text-main);
+    border-radius: 2px;
+    transition: all 0.3s ease-in-out;
+    transform-origin: center;
+  }
+
+  /* Hamburger Animation State */
+  .mobile-toggle.is-active {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+  }
+
+  .mobile-toggle.is-active .bar:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+    background-color: var(--bs-primary);
+  }
+  .mobile-toggle.is-active .bar:nth-child(2) {
+    opacity: 0;
+  }
+  .mobile-toggle.is-active .bar:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+    background-color: var(--bs-primary);
+  }
+
+  /* 3. Fullscreen Glass Overlay */
+  .mobile-nav-overlay {
+    display: flex; /* Hidden via opacity/visibility usually, but we toggle class */
+    position: fixed;
+    inset: 0; /* Full screen */
+    background: rgba(255, 255, 255, 0.6); /* Light Mode fallback */
+    backdrop-filter: blur(20px); /* Heavy blur for glass effect */
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 150;
+    align-items: center;
+    justify-content: center;
+
+    /* Animation Initial State */
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.95);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  [data-theme="dark"] .mobile-nav-overlay {
+    background: rgba(15, 23, 42, 0.7); /* Dark Mode Glass */
+  }
+
+  /* Overlay Active State */
+  .mobile-nav-overlay.is-open {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+  }
+
+  /* 4. Mobile Links */
+  .mobile-nav-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+    max-width: 300px;
+    text-align: center;
+  }
+
+  .mobile-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+  }
+
+  .mobile-link i {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-link:hover,
+  .mobile-link:active {
+    background: var(--bg-surface-highlight);
+    color: var(--color-text-main);
+    transform: scale(1.05);
+  }
+
+  .mobile-link.active {
+    color: var(--color-primary);
+    background: var(--bg-surface-solid);
+    box-shadow: var(--shadow-glass);
+    border: 1px solid var(--border-subtle);
+  }
+  .status-dot {
+    width: 20px;
+    height: 20px;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+}
 /* --- Mobile Devices & Tablets (Max Width: 768px) --- */
 @media (max-width: 768px) {
   /* 1. Layout Reset: Stack everything vertically */
@@ -940,7 +964,7 @@ nav.card {
   }
 
   .btn {
-    width: 100%; /* Full width buttons for easier tapping */
+    height: 40px;
     padding: 12px; /* Taller touch target */
   }
 }

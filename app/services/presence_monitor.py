@@ -172,7 +172,9 @@ class PresenceMonitor:
 
         if device.track_presence:
             db.session.add(PresenceEvent(device_id=device.id, event_type=event))
-            self.socketio.emit(
+
+            # UPDATED: Use bus.emit instead of socketio.emit
+            bus.emit(
                 "presence_update",
                 {
                     "device_id": device.id,

@@ -1,7 +1,7 @@
 /**
  * static/js/analysis.js
  */
-import { socket, Utils } from "./core.js";
+import { Utils } from "./core.js";
 
 class AnalysisController {
   constructor() {
@@ -14,24 +14,22 @@ class AnalysisController {
       logList: document.getElementById("activity-list"),
     };
 
+    // Bind UI controls to refresh data
     if (this.elements.timeRange)
-      this.elements.timeRange.addEventListener("change", () => this.requestData());
+      this.elements.timeRange.addEventListener("change", () => this.requestFrequencyData());
     if (this.elements.intervalRange)
-      this.elements.intervalRange.addEventListener("change", () => this.requestData());
+      this.elements.intervalRange.addEventListener("change", () => this.requestFrequencyData());
 
-    socket.on("frequency_data", (data) => {
-      if (data.frequency) this.updateChart(data.frequency);
-    });
-    socket.on("activity_data", (data) => {
-      this.setHistoricalLog(data.activity || data);
-    });
-    socket.on("sensor_event", (data) => {
-      this.addLogEntry(data);
+    // Listen for Real-time SSE Events (dispatched by core.js)
+    window.addEventListener("sensor_update", (e) => {
+      // e.detail contains the raw sensor event data
+      this.addLogEntry(e.detail);
     });
 
+    // Initialize
     this.initChart();
-    this.requestData();
-    socket.emit("request_activity_data", { hours: 24 });
+    this.requestFrequencyData();
+    this.loadActivityHistory();
   }
 
   initChart() {
@@ -66,10 +64,34 @@ class AnalysisController {
     });
   }
 
-  requestData() {
+  async requestFrequencyData() {
     const hours = parseInt(this.elements.timeRange.value);
     const interval = parseInt(this.elements.intervalRange.value);
-    socket.emit("request_frequency_data", { hours, interval });
+
+    try {
+      // Fetch directly from API instead of socket.emit
+      const data = await Utils.fetchJson(`/api/frequency/${hours}/${interval}`);
+      if (data.success && data.frequency) {
+        this.updateChart(data.frequency);
+      }
+    } catch (e) {
+      console.error("Failed to load frequency data:", e);
+    }
+  }
+
+  async loadActivityHistory() {
+    try {
+      // Fetch historical log directly from API
+      const data = await Utils.fetchJson("/api/activity/24");
+      if (data.success && data.activity) {
+        this.setHistoricalLog(data.activity);
+      }
+    } catch (e) {
+      console.error("Failed to load activity history:", e);
+      if (this.elements.logList) {
+        this.elements.logList.innerHTML = `<div class="text-center text-danger" style="padding:20px">Failed to load history</div>`;
+      }
+    }
   }
 
   updateChart(data) {
@@ -86,7 +108,7 @@ class AnalysisController {
         Array.isArray(rawData) && rawData.length > 0 && rawData[0].hasOwnProperty("state");
 
       if (isDoor) {
-        // Door logic remains same, just colors updated
+        // Door logic remains same
         const blocks = [];
         let openTime = null;
         rawData.forEach((evt) => {
@@ -136,10 +158,20 @@ class AnalysisController {
   }
 
   setHistoricalLog(data) {
-    this.activityLog = [];
     if (this.elements.logList) this.elements.logList.innerHTML = "";
+    // Process list in reverse to show newest first
+    // Note: API returns newest first usually, but setHistoricalLog logic suggests we iterate and prepend?
+    // Let's stick to your original logic: iterate and add.
+    // If 'data' is newest-first, we should iterate normally if 'addLogEntry' uses 'afterbegin' (prepend).
+    // Actually, looking at original code: [...data].reverse().forEach(...) -> addLogEntry.
+    // addLogEntry uses insertAdjacentHTML('afterbegin').
+    // So to keep newest at top, we want to add oldest FIRST, then newest LAST.
+    // So [...data].reverse() is correct if data is Newest->Oldest.
     [...data].reverse().forEach((item) => {
-      if (item.value === 1 || item.state === 1 || item.type === "relay") this.addLogEntry(item);
+      // Filter for significant events (active state or specific types)
+      if (item.value === 1 || item.state === 1 || item.type === "relay") {
+        this.addLogEntry(item);
+      }
     });
   }
 

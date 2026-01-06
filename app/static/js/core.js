@@ -79,26 +79,33 @@ export const Utils = {
   },
 };
 
-// --- Shared Socket Instance ---
-// We expose this so page-specific scripts can listen to events
-export const socket = io({ path: CONFIG.socketPath });
+export const connectStream = () => {
+  const evtSource = new EventSource("/stream");
 
-socket.on("connect", () => {
-  updateConnectionStatus(true);
-});
+  evtSource.addEventListener("sensor_event", (e) => {
+    const data = JSON.parse(e.data);
+    window.dispatchEvent(new CustomEvent("sensor_update", { detail: data }));
+  });
 
-socket.on("disconnect", () => {
-  updateConnectionStatus(false);
-});
+  evtSource.addEventListener("presence_update", (e) => {
+    const data = JSON.parse(e.data);
+    window.dispatchEvent(new CustomEvent("presence_update", { detail: data }));
+  });
 
-function updateConnectionStatus(isConnected) {
-  const text = document.getElementById("connection-text");
+  evtSource.onopen = () => updateStatus(true);
+  evtSource.onerror = () => updateStatus(false);
+};
+
+function updateStatus(connected) {
+  const el = document.getElementById("connection-text");
   const dot = document.querySelector(".status-dot");
-  if (text) text.textContent = isConnected ? "Connected" : "Offline";
-  if (dot) {
-    dot.className = `status-dot ${isConnected ? "connected" : ""}`;
-  }
+  if (el) el.textContent = connected ? "Live Stream" : "Reconnecting...";
+  if (dot) dot.className = `status-dot ${connected ? "connected" : ""}`;
 }
+
+connectStream();
+
+// --- Mobile Navigation & Time Update ---
 const updateTime = () => {
   const el = document.getElementById("system-time");
   if (el) {
