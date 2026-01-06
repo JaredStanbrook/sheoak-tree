@@ -101,7 +101,7 @@
   /* Backgrounds */
   --bg-app: #0f172a; /* Slate 900 */
 
-  /* Glass Panels (Darkened) */
+  /* Glass Cards (Darkened) */
   --bg-glass: rgba(30, 41, 59, 0.6);
   --bg-glass-hover: rgba(30, 41, 59, 0.8);
   --bg-glass-input: rgba(15, 23, 42, 0.6);
@@ -183,10 +183,9 @@ footer {
 }
 
 /* ========================================================================
-   Component: Glass Architecture
+   Component: Glass Foundation
    ======================================================================== */
-/* Base Glass Panel */
-.glass-panel {
+.card {
   background: var(--bg-glass);
   backdrop-filter: var(--backdrop-blur);
   -webkit-backdrop-filter: var(--backdrop-blur);
@@ -195,65 +194,28 @@ footer {
   box-shadow: var(--shadow-glass);
   padding: 24px;
   transition: var(--transition);
+  margin-bottom: 20px;
 }
-
 /* Header Variation */
-.glass-header {
+.card-header {
   position: sticky;
   top: 20px;
   z-index: 100;
   display: flex;
   justify-content: space-between;
+  flex-direction: row;
   align-items: center;
-  padding: 16px 24px;
-  margin-bottom: 32px;
-}
-
-/* Internal Panel Header */
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.panel-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--color-text-main);
-}
-
-/* ========================================================================
-   Component: Glass Cards & Sensors
-   ======================================================================== */
-.glass-card {
-  background: var(--bg-glass);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  border: var(--border-glass);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-glass);
-  padding: 24px;
-  transition: var(--transition);
-}
-
-.glass-card:hover {
-  transform: translateY(-6px);
-  background: var(--grad-glass-shine);
-  box-shadow: var(--shadow-glass-hover);
 }
 
 /* Sensor Layouts */
-.glass-card .sensor-header {
+.card .sensor-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 20px;
 }
 
-.glass-card .sensor-icon {
+.card .sensor-icon {
   width: 48px;
   height: 48px;
   border-radius: 14px;
@@ -267,60 +229,33 @@ footer {
   transition: var(--transition);
 }
 
-.glass-card .sensor-name {
+.card .sensor-name {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-text-main);
   line-height: 1.2;
 }
 
-.glass-card .sensor-meta {
+.card .sensor-meta {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   margin-top: 4px;
 }
 
 /* --- Sensor State: Motion --- */
-.glass-card.active-motion {
+.card:active {
   border-color: rgba(239, 68, 68, 0.3); /* Preserving original values */
   box-shadow: 0 10px 40px -10px rgba(239, 68, 68, 0.3), inset 0 0 20px rgba(239, 68, 68, 0.05);
   background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.9), rgba(254, 226, 226, 0.5));
 }
-.glass-card.active-motion .sensor-icon {
+.card:active .sensor-icon {
   background: var(--grad-danger);
   color: white;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
-.glass-card.active-motion .sensor-state {
+.card:active .sensor-state {
   background: var(--color-danger);
   color: #fff;
-}
-
-/* --- Sensor State: Door --- */
-.glass-card.active-door {
-  border-color: rgba(245, 158, 11, 0.3);
-  box-shadow: 0 10px 40px -10px rgba(245, 158, 11, 0.3), inset 0 0 20px rgba(245, 158, 11, 0.05);
-  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.9), rgba(254, 243, 199, 0.5));
-}
-.glass-card.active-door .sensor-icon {
-  background: var(--grad-warn);
-  color: white;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-}
-.glass-card.active-door .sensor-state {
-  background: var(--color-warn);
-  color: #fff;
-}
-
-/* --- Sensor State: Relay --- */
-.glass-card.active-relay {
-  border-color: rgba(16, 185, 129, 0.3);
-  box-shadow: 0 10px 40px -10px rgba(16, 185, 129, 0.3), inset 0 0 20px rgba(16, 185, 129, 0.05);
-}
-.glass-card.active-relay .sensor-icon {
-  background: var(--grad-success);
-  color: white;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 /* Sensor Grid Layout */
@@ -352,6 +287,10 @@ footer {
 /* ========================================================================
    Component: Navigation
    ======================================================================== */
+nav.card {
+  margin-top: 20px;
+  flex-direction: row;
+}
 .nav-brand {
   font-size: 1.25rem;
   font-weight: 700;
@@ -385,6 +324,148 @@ footer {
   color: var(--bs-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
+/* ========================================================================
+   Mobile Navigation (Glass Overlay)
+   ======================================================================== */
+
+/* 1. Layout Adjustments */
+.nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Hide Mobile Elements on Desktop */
+.mobile-toggle,
+.mobile-nav-overlay {
+  display: none;
+}
+
+/* 2. Mobile Breakpoint */
+@media (max-width: 768px) {
+  /* Hide Desktop Menu */
+  .desktop-only {
+    display: none;
+  }
+
+  /* Hamburger Button Style */
+  .mobile-toggle {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 40px;
+    height: 40px;
+    padding: 10px 8px;
+    background: var(--bg-glass-input);
+    border: var(--border-glass);
+    border-radius: 12px;
+    cursor: pointer;
+    z-index: 200; /* Above overlay */
+    transition: var(--transition);
+  }
+
+  .mobile-toggle .bar {
+    width: 100%;
+    height: 2px;
+    background-color: var(--color-text-main);
+    border-radius: 2px;
+    transition: all 0.3s ease-in-out;
+    transform-origin: center;
+  }
+
+  /* Hamburger Animation State */
+  .mobile-toggle.is-active {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+  }
+
+  .mobile-toggle.is-active .bar:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+    background-color: var(--bs-primary);
+  }
+  .mobile-toggle.is-active .bar:nth-child(2) {
+    opacity: 0;
+  }
+  .mobile-toggle.is-active .bar:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+    background-color: var(--bs-primary);
+  }
+
+  /* 3. Fullscreen Glass Overlay */
+  .mobile-nav-overlay {
+    display: flex; /* Hidden via opacity/visibility usually, but we toggle class */
+    position: fixed;
+    inset: 0; /* Full screen */
+    background: rgba(255, 255, 255, 0.6); /* Light Mode fallback */
+    backdrop-filter: blur(20px); /* Heavy blur for glass effect */
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 150;
+    align-items: center;
+    justify-content: center;
+
+    /* Animation Initial State */
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.95);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  [data-theme="dark"] .mobile-nav-overlay {
+    background: rgba(15, 23, 42, 0.7); /* Dark Mode Glass */
+  }
+
+  /* Overlay Active State */
+  .mobile-nav-overlay.is-open {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+  }
+
+  /* 4. Mobile Links */
+  .mobile-nav-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+    max-width: 300px;
+    text-align: center;
+  }
+
+  .mobile-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+  }
+
+  .mobile-link i {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-link:hover,
+  .mobile-link:active {
+    background: var(--bg-surface-highlight);
+    color: var(--color-text-main);
+    transform: scale(1.05);
+  }
+
+  .mobile-link.active {
+    color: var(--color-primary);
+    background: var(--bg-surface-solid);
+    box-shadow: var(--shadow-glass);
+    border: 1px solid var(--border-subtle);
+  }
+}
+/* ========================================================================
+   Component: Status Pills & Theme Toggle
+   ======================================================================== */
 
 .status-pill {
   display: flex;
@@ -792,6 +873,7 @@ footer {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    align-items: normal;
   }
 
   .container {
@@ -799,57 +881,17 @@ footer {
   }
 
   /* 2. Header Adjustments */
-  .glass-header {
+  .card-header {
     position: relative;
-    flex-direction: column;
     align-items: stretch;
     gap: 16px;
-    padding: 16px;
-    top: 10px; /* Add breathing room from top notch */
+    top: 0;
     margin-bottom: 20px;
-    /* On mobile, sometimes sticky headers take up too much space. 
-       Uncomment next line if you want it to scroll away: */
-    /* position: relative; top: 0; */
   }
 
-  .nav-menu {
-    /* Create a horizontal scrollable tab bar */
-    display: flex;
-    overflow-x: auto;
-    white-space: nowrap;
-    padding-bottom: 4px; /* Space for scrollbar if visible */
-    -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
-    /* Hide scrollbar for cleaner look */
-    scrollbar-width: none;
-  }
-  .nav-menu::-webkit-scrollbar {
-    display: none;
-  }
-
-  .nav-item {
-    flex-shrink: 0; /* Prevent shrinking */
-    padding: 10px 16px;
-    background: var(--bg-surface-solid);
-    margin-right: 8px;
-    border: 1px solid var(--border-subtle);
-  }
-
-  /* 3. Panel & Card Spacing */
-  .glass-panel,
-  .glass-card {
+  /* 3. Card Spacing */
+  .card {
     padding: 16px; /* Reduce internal padding from 24px */
-  }
-
-  .panel-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .panel-header .btn,
-  .panel-header .status-pill {
-    width: 100%; /* Make actions full width on mobile */
-    justify-content: center;
   }
 
   /* 4. Sensors Grid */
@@ -858,13 +900,13 @@ footer {
     grid-template-columns: 1fr;
   }
 
-  .glass-card .sensor-header {
+  .card .sensor-header {
     flex-direction: column; /* Stack icon and status */
     align-items: flex-start;
     gap: 10px;
   }
 
-  .glass-card .sensor-icon {
+  .card .sensor-icon {
     width: 40px;
     height: 40px;
     font-size: 1.2rem;
@@ -872,7 +914,7 @@ footer {
     margin-bottom: 8px;
   }
 
-  .glass-card .sensor-name {
+  .card .sensor-name {
     font-size: 1rem;
   }
 
@@ -886,10 +928,6 @@ footer {
   h1,
   .nav-brand {
     font-size: 1.5rem;
-  }
-  h2,
-  .panel-title {
-    font-size: 1.1rem;
   }
 
   /* 6. Modals */
@@ -910,7 +948,7 @@ footer {
 /* --- Touch Device Optimizations (Hover Fixes) --- */
 @media (hover: none) {
   /* Remove hover transforms on touch to prevent "sticky" states */
-  .glass-card:hover {
+  .card:hover {
     transform: none;
     box-shadow: var(--shadow-glass); /* Reset to default shadow */
   }
@@ -920,7 +958,6 @@ footer {
   }
 
   /* Add active state for touch feedback instead */
-  .glass-card:active,
   .btn:active {
     transform: scale(0.98);
     background: var(--bg-glass-hover);

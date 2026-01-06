@@ -5,9 +5,9 @@
   defer></script>
 {%endblock %} {% block content %}
 <div class="layout-grid" style="grid-template-columns: 1fr 350px">
-  <div class="glass-panel">
-    <div class="panel-header">
-      <h3 class="panel-title">Activity Frequency</h3>
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Activity Frequency</h3>
       <div style="display: flex; gap: 12px">
         <select id="timeRange" class="form-select" style="width: auto; padding-right: 32px">
           <option value="6">Last 6 Hours</option>
@@ -28,9 +28,9 @@
     <div id="chartInfo" class="text-center text-muted mt-4" style="font-size: 0.85rem"></div>
   </div>
 
-  <div class="glass-panel">
-    <div class="panel-header">
-      <h3 class="panel-title">Event Log</h3>
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Event Log</h3>
     </div>
     <div id="activity-list" class="log-list">
       <div class="text-center text-muted" style="padding: 40px">Loading history...</div>

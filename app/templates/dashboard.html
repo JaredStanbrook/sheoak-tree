@@ -1,22 +1,20 @@
 {% extends "base.html" %} {% block content %}
-<div style="margin-bottom: 24px">
-  <div class="glass-panel" style="margin-bottom: 24px">
-    <div class="panel-header">
-      <h3 class="panel-title">Who is Home</h3>
-      <span id="home-count" class="badge badge-gray">0</span>
-    </div>
-    <div id="people-list" style="display: flex; gap: 8px; flex-wrap: wrap">
-      <span class="text-muted text-center" style="width: 100%">Loading presence...</span>
-    </div>
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Who is Home</h3>
+    <span id="home-count" class="badge badge-gray">0</span>
   </div>
+  <div id="people-list" style="display: flex; gap: 8px; flex-wrap: wrap">
+    <span class="text-muted text-center" style="width: 100%">Loading presence...</span>
+  </div>
+</div>
 
-  <div id="system-summary" style="margin-bottom: 32px"></div>
+<div id="system-summary"></div>
 
-  <div id="sensors-grid" class="grid-sensors">
-    <div class="glass-card" style="align-items: center; justify-content: center">
-      <div class="spinner"></div>
-      <p class="text-muted">Loading sensors...</p>
-    </div>
+<div id="sensors-grid" class="grid-sensors">
+  <div class="card" style="align-items: center; justify-content: center">
+    <div class="spinner"></div>
+    <p class="text-muted">Loading sensors...</p>
   </div>
 </div>
 {% endblock %} {% block scripts %}

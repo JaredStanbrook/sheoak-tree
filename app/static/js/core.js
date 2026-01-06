@@ -112,6 +112,32 @@ const updateTime = () => {
   }
 };
 document.addEventListener("DOMContentLoaded", () => {
+  // Mobile Navigation Toggle
+  const mobileToggle = document.getElementById("mobile-menu-toggle");
+  const mobileOverlay = document.getElementById("mobile-nav-overlay");
+  const mobileLinks = document.querySelectorAll(".mobile-link");
+
+  function toggleMenu() {
+    const isOpen = mobileOverlay.classList.toggle("is-open");
+    mobileToggle.classList.toggle("is-active");
+
+    // Prevent body scrolling when menu is open
+    document.body.style.overflow = isOpen ? "hidden" : "";
+  }
+
+  if (mobileToggle) {
+    mobileToggle.addEventListener("click", toggleMenu);
+  }
+
+  // Close menu when a link is clicked
+  mobileLinks.forEach((link) => {
+    link.addEventListener("click", () => {
+      if (mobileOverlay.classList.contains("is-open")) {
+        toggleMenu();
+      }
+    });
+  });
+  // Time display
   updateTime();
   setInterval(updateTime, 1000);
   if (window.lucide) window.lucide.createIcons();

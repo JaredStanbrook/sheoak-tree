@@ -75,6 +75,7 @@ class PresenceMonitor:
         # 1. Start mDNS Listener (Continuous)
         self.mdns = MDNSListener()
         self.zeroconf = Zeroconf()
+
         # Listen for Apple devices & standard workstations
         self.browser = ServiceBrowser(
             self.zeroconf,
@@ -119,7 +120,10 @@ class PresenceMonitor:
     def _run_snmp_scan(self):
         """Wrapper to run async SNMP in sync context"""
         try:
-            return asyncio.run(self._get_arp_table_async())
+            if not hasattr(self, "_loop"):
+                self._loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self._loop)
+            return self._loop.run_until_complete(self._get_arp_table_async())
         except Exception as e:
             logger.error(f"Async Bridge Error: {e}")
             return {}
