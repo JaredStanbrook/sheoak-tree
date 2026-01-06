@@ -247,9 +247,9 @@ footer {
 
 /* --- Sensor State: Motion --- */
 .card.is-active {
-  border-color: rgba(239, 68, 68, 0.3); /* Preserving original values */
-  box-shadow: 0 10px 40px -10px rgba(239, 68, 68, 0.3), inset 0 0 20px rgba(239, 68, 68, 0.05);
-  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.9), rgba(254, 226, 226, 0.5));
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 10px 40px -10px var(--color-danger-bg), inset 0 0 20px rgba(239, 68, 68, 0.05);
+  background: linear-gradient(to bottom right, var(--bg-surface-solid), var(--color-danger-bg));
 }
 .card.is-active .sensor-icon {
   background: var(--grad-danger);
