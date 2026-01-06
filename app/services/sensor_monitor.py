@@ -1,87 +1,87 @@
-# app/services/sensor_monitor.py
-
 import time
 import threading
 import logging
+import random
 from datetime import datetime, timedelta
-from app.extensions import socketio, db
+from app.extensions import db
 from app.models import Sensor, Event
-from sqlalchemy import func
+from app.services.event_service import bus
 
 logger = logging.getLogger(__name__)
 
 try:
-    # Try to import the real library (Works on Pi)
     import RPi.GPIO as GPIO
 except (ImportError, RuntimeError):
-    # If it fails (Mac/Windows), use this Mock Class
-    logger.warning("RPi.GPIO not found. Using Mock GPIO for local development.")
+    logger.warning("RPi.GPIO not found. Using Mock GPIO with Random Simulation.")
 
     class MockGPIO:
-        """A fake GPIO class that logs actions instead of touching hardware."""
-
         BCM = "BCM"
-        BOARD = "BOARD"
         OUT = "OUT"
         IN = "IN"
         HIGH = 1
         LOW = 0
-        RISING = "RISING"
-        FALLING = "FALLING"
-        BOTH = "BOTH"
         PUD_UP = "PUD_UP"
-        PUD_DOWN = "PUD_DOWN"
 
-        @staticmethod
-        def setwarnings(flag):
-            logger.info(f"[MOCK] Warnings set to: {flag}")
+        # Simulation State
+        _pin_states = {}
+        _input_pins = []
+        _sim_running = False
+
+        @classmethod
+        def _start_sim(cls):
+            if cls._sim_running:
+                return
+            cls._sim_running = True
+            threading.Thread(target=cls._sim_loop, daemon=True).start()
+
+        @classmethod
+        def _sim_loop(cls):
+            while cls._sim_running:
+                time.sleep(random.uniform(2.0, 8.0))  # Random event every 2-8s
+                if not cls._input_pins:
+                    continue
+
+                # Pick random pin and toggle it
+                pin = random.choice(cls._input_pins)
+                cls._pin_states[pin] = 1 if cls._pin_states.get(pin, 0) == 0 else 0
+                logger.info(f"[MOCK SIM] Toggling Pin {pin} to {cls._pin_states[pin]}")
 
         @staticmethod
         def setmode(mode):
-            logger.info(f"[MOCK] GPIO Mode set to: {mode}")
+            pass
+
+        @staticmethod
+        def setwarnings(flag):
+            pass
+
+        @staticmethod
+        def cleanup():
+            MockGPIO._sim_running = False
 
         @staticmethod
         def setup(pin, mode, pull_up_down=None):
-            logger.info(f"[MOCK] Pin {pin} setup as {mode}")
+            if mode == MockGPIO.IN:
+                if pin not in MockGPIO._input_pins:
+                    MockGPIO._input_pins.append(pin)
+                MockGPIO._pin_states[pin] = 0
+                MockGPIO._start_sim()
 
         @staticmethod
         def output(pin, state):
-            logger.info(f"[MOCK] Pin {pin} set to {'HIGH' if state else 'LOW'}")
+            MockGPIO._pin_states[pin] = state
 
         @staticmethod
         def input(pin):
-            # Simulate a sensor reading (Return 0 or 1)
-            return 0
+            return MockGPIO._pin_states.get(pin, 0)
 
-        @staticmethod
-        def add_event_detect(pin, edge, callback=None, bouncetime=None):
-            logger.info(f"[MOCK] Event listener added to Pin {pin} ({edge})")
-
-        @staticmethod
-        def remove_event_detect(pin):
-            logger.info(f"[MOCK] Event listener removed from Pin {pin}")
-
-        @staticmethod
-        def cleanup(channel=None):
-            # cleanup can sometimes take a specific channel or None
-            if channel:
-                logger.info(f"[MOCK] GPIO Cleanup on channel {channel}")
-            else:
-                logger.info("[MOCK] GPIO Cleanup (All)")
-
-    # Assign the Mock class to the variable 'GPIO'
     GPIO = MockGPIO
 
 
 class MotionSensorApp:
-
     def __init__(self, app, debounce_ms=300):
-        self.app = app  # Keep reference to Flask App for DB Context
-        self.socketio = socketio
+        self.app = app
         self.debounce_ms = debounce_ms
         self._lock = threading.Lock()
-
-        # Runtime Cache (To avoid hitting DB 20 times a second)
         self.sensors_cache = []
         self.last_activity_map = {}
 
@@ -93,16 +93,10 @@ class MotionSensorApp:
         self.monitor_thread.start()
 
     def _load_sensors_to_cache(self):
-        """Load sensors from DB into memory for fast loop access"""
         with self.app.app_context():
-            # Create default sensors if DB is empty
             if Sensor.query.count() == 0:
                 self._seed_defaults()
-
-            # Load enabled sensors
             sensors = Sensor.query.filter_by(enabled=True).all()
-
-            # Transform into simple objects for the loop
             self.sensors_cache = []
             for s in sensors:
                 self.sensors_cache.append(
@@ -115,10 +109,8 @@ class MotionSensorApp:
                         "last_change": datetime.min,
                     }
                 )
-            logger.info(f"Loaded {len(self.sensors_cache)} sensors from DB.")
 
     def _seed_defaults(self):
-        """Initial Setup if fresh DB"""
         defaults = [
             Sensor(name="Living Room", pin=6, type="motion"),
             Sensor(name="Hallway", pin=2, type="motion"),
@@ -133,93 +125,90 @@ class MotionSensorApp:
         GPIO.setwarnings(False)
         for s in self.sensors_cache:
             try:
-                # NEW: Check type to decide Input vs Output
                 if s["type"] == "relay":
                     GPIO.setup(s["pin"], GPIO.OUT)
-                    # Default to OFF (Low) on boot
                     GPIO.output(s["pin"], GPIO.LOW)
-                    s["current_state"] = False
                 else:
-                    # Standard Sensors (Motion/Door)
                     GPIO.setup(s["pin"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
             except Exception as e:
-                logger.error(f"GPIO Setup Error Pin {s['pin']}: {e}")
-
-    def set_relay(self, state: bool):
-        """
-        Controls the 5V Relay.
-        state: True for ON (High), False for OFF (Low)
-        """
-        with self._lock:
-            self.relay_state = state
-            GPIO.output(self.relay_pin, GPIO.HIGH if state else GPIO.LOW)
-
-            # Optional: Emit socket event so UI updates immediately
-            self.socketio.emit(
-                "relay_event",
-                {
-                    "pin": self.relay_pin,
-                    "state": "ON" if state else "OFF",
-                    "timestamp": datetime.now().isoformat(),
-                },
-            )
-
-            logger.info(f"Relay on Pin {self.relay_pin} set to {state}")
-            return self.relay_state
+                logger.error(f"GPIO Error: {e}")
 
     def _monitor_loop(self):
-        logger.info("Starting DB-backed Monitor Loop")
         while self.monitoring:
             try:
                 current_time = datetime.now()
-
-                # We iterate over the CACHE, not the DB (Speed!)
                 with self._lock:
                     for s in self.sensors_cache:
                         if s["type"] == "relay":
                             continue
-                        try:
-                            # Read Hardware
-                            raw_val = GPIO.input(s["pin"])
-                            is_active = raw_val == GPIO.HIGH
 
-                            if is_active != s["current_state"]:
-                                # Debounce
-                                elapsed = (
-                                    current_time - s["last_change"]
-                                ).total_seconds() * 1000
-                                if elapsed > self.debounce_ms:
-                                    self._handle_state_change(
-                                        s, is_active, current_time
-                                    )
-                        except Exception as e:
-                            logger.error(f"Pin Read Error: {e}")
+                        raw_val = GPIO.input(s["pin"])
+                        is_active = raw_val == GPIO.HIGH
 
+                        if is_active != s["current_state"]:
+                            elapsed = (
+                                current_time - s["last_change"]
+                            ).total_seconds() * 1000
+                            if elapsed > self.debounce_ms:
+                                self._handle_state_change(s, is_active, current_time)
                 time.sleep(0.05)
             except Exception as e:
                 logger.error(f"Loop Error: {e}")
                 time.sleep(1)
 
+    def _handle_state_change(self, sensor, new_state, timestamp):
+        sensor["current_state"] = new_state
+        sensor["last_change"] = timestamp
+
+        event_name = "Activated"
+        if sensor["type"] == "door":
+            event_name = "Door Opened" if new_state else "Door Closed"
+        elif sensor["type"] == "motion":
+            event_name = "Motion Detected" if new_state else "Motion Cleared"
+        if new_state:
+            self.last_activity_map[sensor["name"]] = timestamp
+
+        # 1. DB Log (Only significant events)
+        should_log = True
+        if sensor["type"] == "motion" and not new_state:
+            should_log = False
+
+        if should_log:
+            with self.app.app_context():
+                db.session.add(
+                    Event(
+                        sensor_id=sensor["id"],
+                        value=1 if new_state else 0,
+                        event_type=event_name,
+                        timestamp=timestamp,
+                    )
+                )
+                db.session.commit()
+
+        # 2. SSE Emit (Replaces SocketIO)
+        bus.emit(
+            "sensor_event",
+            {
+                "sensor_id": sensor["id"],
+                "name": sensor["name"],
+                "event": event_name,
+                "value": 1 if new_state else 0,
+                "timestamp": timestamp.isoformat(),
+            },
+        )
+
     def toggle_sensor(self, sensor_id):
         with self._lock:
-            # Find the sensor in memory cache
             target = next((s for s in self.sensors_cache if s["id"] == sensor_id), None)
-
             if not target or target["type"] != "relay":
-                return False, "Invalid sensor or not a relay"
+                return False, "Invalid"
 
-            # Toggle State
             new_state = not target["current_state"]
-
-            # Hardware Actuation
             GPIO.output(target["pin"], GPIO.HIGH if new_state else GPIO.LOW)
-
-            # Update Cache
             target["current_state"] = new_state
-            target["last_change"] = datetime.now()
 
-            # Emit event so Frontend updates the button color immediately
-            self.socketio.emit(
+            # Emit SSE
+            bus.emit(
                 "sensor_event",
                 {
                     "sensor_id": target["id"],
@@ -231,57 +220,8 @@ class MotionSensorApp:
             )
             return True, new_state
 
-    def _handle_state_change(self, sensor_obj, new_state, timestamp):
-        # Update Cache
-        sensor_obj["current_state"] = new_state
-        sensor_obj["last_change"] = timestamp
-
-        if new_state:
-            self.last_activity_map[sensor_obj["name"]] = timestamp
-
-        # Determine Event Details
-        event_name = ""
-        should_log = False
-
-        if sensor_obj["type"] == "door":
-            event_name = "Door Opened" if new_state else "Door Closed"
-            should_log = True
-        elif sensor_obj["type"] == "motion":
-            if new_state:
-                event_name = "Motion Detected"
-                should_log = True
-            else:
-                event_name = "Motion Cleared"
-                should_log = False  # Don't log clears to DB to save space
-
-        # 1. Write to DB (Requires Context)
-        if should_log:
-            with self.app.app_context():
-                new_event = Event(
-                    sensor_id=sensor_obj["id"],
-                    value=1 if new_state else 0,
-                    event_type=event_name,
-                    timestamp=timestamp,
-                )
-                db.session.add(new_event)
-                db.session.commit()
-
-        # 2. Emit Realtime
-        self.socketio.emit(
-            "sensor_event",
-            {
-                "sensor_id": sensor_obj["id"],
-                "name": sensor_obj["name"],
-                "event": event_name,
-                "value": 1 if new_state else 0,
-                "timestamp": timestamp.isoformat(),
-            },
-        )
-
-    # --- Data Access Methods (Used by API) ---
-
+    # Data Access (Getters)
     def get_sensor_data(self):
-        # Return combination of DB config + Memory state
         with self._lock:
             return [
                 {

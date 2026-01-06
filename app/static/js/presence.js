@@ -1,4 +1,4 @@
-import { Utils, socket } from "./core.js";
+import { Utils } from "./core.js";
 
 class PresenceController {
   constructor() {
@@ -12,8 +12,8 @@ class PresenceController {
       },
     };
 
-    // Listen for updates
-    socket.on("presence_update", () => this.loadDevices());
+    // Listen for updates (SSE via core.js dispatch)
+    window.addEventListener("presence_update", () => this.loadDevices());
 
     // Initial Load
     this.loadDevices();

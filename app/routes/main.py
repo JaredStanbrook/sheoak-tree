@@ -4,11 +4,14 @@ from functools import wraps
 from flask import (
     Blueprint,
     render_template,
+    Response,
+    stream_with_context,
     jsonify,
     send_file,
     current_app,
     send_from_directory,
 )
+from app.services.event_service import bus
 from flask_socketio import emit
 from app.extensions import socketio
 from app.services.manager import get_services
@@ -139,3 +142,19 @@ def handle_frequency_request(data):
         )
     else:
         emit("error", {"message": "Sensor service not initialized"})
+
+
+@bp.route("/stream")
+def stream():
+    """Server-Sent Events Endpoint"""
+
+    def gen():
+        q = bus.subscribe()
+        try:
+            while True:
+                msg = q.get()
+                yield msg
+        except GeneratorExit:
+            bus.unsubscribe(q)
+
+    return Response(stream_with_context(gen()), mimetype="text/event-stream")
