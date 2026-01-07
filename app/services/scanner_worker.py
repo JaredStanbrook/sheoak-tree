@@ -1,25 +1,20 @@
-import logging
 import asyncio
+import logging
 import socket
-from datetime import datetime
 
 # Configure logging for the isolated process
 logging.basicConfig(level=logging.INFO, format="[Scanner] %(message)s")
 logger = logging.getLogger("Scanner")
 
 
-def scanner_process_entry(
-    target_ip, community, scan_interval, output_queue, stop_event
-):
+def scanner_process_entry(target_ip, community, scan_interval, output_queue, stop_event):
     """
     Entry point for the isolated scanner process.
     This runs in a pristine Python environment (no Gevent, no Flask).
     """
     try:
         asyncio.run(
-            run_async_scan_loop(
-                target_ip, community, scan_interval, output_queue, stop_event
-            )
+            run_async_scan_loop(target_ip, community, scan_interval, output_queue, stop_event)
         )
     except KeyboardInterrupt:
         pass
@@ -27,20 +22,18 @@ def scanner_process_entry(
         logger.error(f"Critical Scanner Failure: {e}")
 
 
-async def run_async_scan_loop(
-    target_ip, community, scan_interval, output_queue, stop_event
-):
+async def run_async_scan_loop(target_ip, community, scan_interval, output_queue, stop_event):
     # Import locally to avoid top-level side effects
-    from zeroconf import Zeroconf, ServiceBrowser
     from pysnmp.hlapi.v3arch.asyncio import (
-        SnmpEngine,
         CommunityData,
-        UdpTransportTarget,
         ContextData,
-        ObjectType,
         ObjectIdentity,
+        ObjectType,
+        SnmpEngine,
+        UdpTransportTarget,
         walk_cmd,
     )
+    from zeroconf import ServiceBrowser, Zeroconf
 
     # --- mDNS Helper ---
     class MDNSListener:
@@ -67,9 +60,7 @@ async def run_async_scan_loop(
     async def fetch_arp_table():
         arp_map = {}
         try:
-            transport = await UdpTransportTarget.create(
-                (target_ip, 161), timeout=2.0, retries=1
-            )
+            transport = await UdpTransportTarget.create((target_ip, 161), timeout=2.0, retries=1)
             iterator = walk_cmd(
                 SnmpEngine(),
                 CommunityData(community),

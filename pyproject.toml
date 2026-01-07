@@ -1,5 +1,15 @@
-[tool.pylint.messages_control]
-disable = [
-    "import-outside-toplevel",
-    "broad-exception-caught"
-]
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+ignore = ["E501"] # Allow long lines (let formatter handle it)
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "config"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["*_test.py", "test_*.py"]
+addopts = "-v"

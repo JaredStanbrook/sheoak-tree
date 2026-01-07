@@ -1,6 +1,6 @@
 import json
-from datetime import datetime
 import random
+from datetime import datetime
 
 
 class SequenceLabelingHelper:
@@ -36,7 +36,7 @@ class SequenceLabelingHelper:
             for s in self.sequences:
                 if s.get("label"):
                     label_dist[s["label"]] = label_dist.get(s["label"], 0) + 1
-            print(f"\nLabel distribution:")
+            print("\nLabel distribution:")
             for label, count in sorted(label_dist.items()):
                 print(f"  {label}: {count}")
 
@@ -49,10 +49,10 @@ class SequenceLabelingHelper:
         events = [len(s["raw_events"]) for s in self.sequences]
 
         print(
-            f"Duration (min) - Min: {min(durations):.1f}, Max: {max(durations):.1f}, Avg: {sum(durations)/len(durations):.1f}"
+            f"Duration (min) - Min: {min(durations):.1f}, Max: {max(durations):.1f}, Avg: {sum(durations) / len(durations):.1f}"
         )
         print(
-            f"Events - Min: {min(events)}, Max: {max(events)}, Avg: {sum(events)/len(events):.1f}"
+            f"Events - Min: {min(events)}, Max: {max(events)}, Avg: {sum(events) / len(events):.1f}"
         )
 
         # Time distribution
@@ -70,12 +70,8 @@ class SequenceLabelingHelper:
         hour = datetime.fromisoformat(sequence["start_time"]).hour
 
         # Count specific events
-        door_events = sum(
-            1 for e in sequence["raw_events"] if "Door" in e.get("event", "")
-        )
-        motion_events = sum(
-            1 for e in sequence["raw_events"] if "Motion" in e.get("event", "")
-        )
+        door_events = sum(1 for e in sequence["raw_events"] if "Door" in e.get("event", ""))
+        motion_events = sum(1 for e in sequence["raw_events"] if "Motion" in e.get("event", ""))
 
         first_event = sequence["raw_events"][0]["sensor_name"]
         last_event = sequence["raw_events"][-1]["sensor_name"]
@@ -99,7 +95,9 @@ class SequenceLabelingHelper:
                 if first_event == "Kitchen" or first_event == "Living Room":
                     suggestions.append("Notify")
                     confidence = "HIGH"
-                    reason = "Strange night activity starting in Kitchen/Living Room without door entry"
+                    reason = (
+                        "Strange night activity starting in Kitchen/Living Room without door entry"
+                    )
                 else:
                     suggestions.append("Log")
                     confidence = "MEDIUM"
@@ -107,13 +105,9 @@ class SequenceLabelingHelper:
 
             # Sequences that start with door opening
             elif first_event == "Door":
-                start_ts = datetime.fromisoformat(
-                    sequence["raw_events"][0]["timestamp"]
-                )
+                start_ts = datetime.fromisoformat(sequence["raw_events"][0]["timestamp"])
                 end_ts = datetime.fromisoformat(sequence["raw_events"][-1]["timestamp"])
-                door_open_duration = (
-                    end_ts - start_ts
-                ).total_seconds() / 60  # duration in minutes
+                door_open_duration = (end_ts - start_ts).total_seconds() / 60  # duration in minutes
                 if door_open_duration > 10 or door_events > 5:
                     suggestions.append("Alarm")
                     confidence = "HIGH"
@@ -173,9 +167,7 @@ class SequenceLabelingHelper:
         Get diverse sample of sequences for labeling
         Uses stratified sampling across characteristics
         """
-        unlabeled = [
-            s for s in self.sequences if not s.get("label") or s["label"] == ""
-        ]
+        unlabeled = [s for s in self.sequences if not s.get("label") or s["label"] == ""]
 
         if len(unlabeled) < n:
             print(f"Only {len(unlabeled)} unlabeled sequences available")
@@ -195,9 +187,7 @@ class SequenceLabelingHelper:
         # Fill remainder randomly
         if len(samples) < n:
             remaining = [s for s in unlabeled if s not in samples]
-            samples.extend(
-                random.sample(remaining, min(n - len(samples), len(remaining)))
-            )
+            samples.extend(random.sample(remaining, min(n - len(samples), len(remaining))))
 
         return samples[:n]
 
@@ -215,9 +205,7 @@ class SequenceLabelingHelper:
         labeled_count = 0
 
         for i, seq in enumerate(to_label):
-            print(
-                f"\n--- Sequence {i+1}/{len(to_label)} (ID: {seq['sequence_id']}) ---"
-            )
+            print(f"\n--- Sequence {i + 1}/{len(to_label)} (ID: {seq['sequence_id']}) ---")
             print(f"Start: {seq['start_time']}")
             print(f"Duration: {seq['duration_minutes']:.1f} minutes")
             print(f"Events: {len(seq['raw_events'])}")
@@ -226,9 +214,7 @@ class SequenceLabelingHelper:
             # Show first few events
             print("\nFirst few events:")
             for event in seq["raw_events"][:5]:
-                print(
-                    f"  {event['timestamp'][-12:]} - {event['sensor_name']}: {event['event']}"
-                )
+                print(f"  {event['timestamp'][-12:]} - {event['sensor_name']}: {event['event']}")
             if len(seq["raw_events"]) > 5:
                 print(f"  ... and {len(seq['raw_events']) - 5} more events")
 
@@ -293,9 +279,7 @@ class SequenceLabelingHelper:
         """
         import csv
 
-        unlabeled = [
-            s for s in self.sequences if not s.get("label") or s["label"] == ""
-        ]
+        unlabeled = [s for s in self.sequences if not s.get("label") or s["label"] == ""]
 
         with open(output_path, "w", newline="") as f:
             writer = csv.writer(f)
@@ -367,14 +351,12 @@ class SequenceLabelingHelper:
         if "metadata" not in self.data:
             self.data["metadata"] = {}
 
-        from datetime import datetime
         import os
+        from datetime import datetime
 
         self.data["metadata"]["last_labeled_at"] = datetime.now().isoformat()
 
-        labeled_count = sum(
-            1 for s in self.sequences if s.get("label") and s["label"].strip()
-        )
+        labeled_count = sum(1 for s in self.sequences if s.get("label") and s["label"].strip())
         self.data["metadata"]["labeled_sequences"] = labeled_count
 
         # Create backup with auto_ prefix

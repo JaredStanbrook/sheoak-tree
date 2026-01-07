@@ -5,9 +5,10 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from app.extensions import socketio, db
-from app.models import Device, PresenceEvent
 from netaddr import EUI
+
+from app.extensions import db, socketio
+from app.models import Device, PresenceEvent
 
 # Import the isolated worker function
 from app.services.scanner_worker import scanner_process_entry
@@ -55,9 +56,7 @@ class PresenceMonitor:
         self.scan_process.start()
 
         # Start local consumer thread
-        self.consumer_thread = threading.Thread(
-            target=self._consume_results, daemon=True
-        )
+        self.consumer_thread = threading.Thread(target=self._consume_results, daemon=True)
         self.consumer_thread.start()
 
     def stop(self):
@@ -197,9 +196,7 @@ class PresenceMonitor:
         return {
             "monitoring": self.running,
             "target_ip": self.target_ip,
-            "scanner_alive": (
-                self.scan_process.is_alive() if self.scan_process else False
-            ),
+            "scanner_alive": (self.scan_process.is_alive() if self.scan_process else False),
         }
 
     def update_device(self, device_id, **kwargs):

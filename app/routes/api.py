@@ -1,5 +1,9 @@
-from flask import Blueprint, jsonify, current_app, request, current_app
+"""Module providing api."""
+
 from datetime import datetime
+
+from flask import Blueprint, current_app, jsonify, request
+
 from app.services.manager import get_services
 
 bp = Blueprint("api", __name__)
@@ -8,6 +12,7 @@ logger = current_app.logger if current_app else None
 
 @bp.route("/sensors")
 def api_sensors():
+    """api sensor endpoint."""
     motion_app = get_services().get_motion_app()
     if not motion_app:
         return jsonify({"success": False, "error": "Sensor service unavailable"}), 503
@@ -114,9 +119,7 @@ def get_sequences_list():
             page=request.args.get("page", 1, type=int),
             per_page=request.args.get("per_page", 20, type=int),
         )
-        return jsonify(
-            {"success": True, **result, "timestamp": datetime.now().isoformat()}
-        )
+        return jsonify({"success": True, **result, "timestamp": datetime.now().isoformat()})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -407,9 +410,7 @@ def who_is_home():
         all_devices = monitor.get_devices()
 
         # FILTER: Only get devices that are home AND represent a person (track_presence=True)
-        present_devices = [
-            d for d in all_devices if d["is_home"] and d.get("track_presence", True)
-        ]
+        present_devices = [d for d in all_devices if d["is_home"] and d.get("track_presence", True)]
 
         # Group by owner
         people_home = {}

@@ -1,16 +1,16 @@
 from flask import (
     Blueprint,
-    render_template,
     current_app,
-    request,
-    redirect,
-    url_for,
     flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
 )
-from sqlalchemy.exc import IntegrityError
-from app.models import Sensor
 from sqlalchemy import select
+
 from app.extensions import db
+from app.models import Sensor
 
 bp = Blueprint("sensors", __name__)
 logger = current_app.logger if current_app else None
@@ -30,9 +30,7 @@ def manage_sensors():
             flash("Name and Pin are required.", "error")
         else:
             try:
-                new_sensor = Sensor(
-                    name=name, pin=int(pin), type=s_type, enabled=enabled
-                )
+                new_sensor = Sensor(name=name, pin=int(pin), type=s_type, enabled=enabled)
                 db.session.add(new_sensor)
                 db.session.commit()
                 flash(f'Sensor "{name}" added successfully.', "success")
@@ -78,9 +76,7 @@ def edit_sensor(sensor_id):
     stmt = select(Sensor).order_by(Sensor.id)
     all_sensors = db.session.execute(stmt).scalars().all()
 
-    return render_template(
-        "sensors_manage.html", sensors=all_sensors, edit_sensor=sensor
-    )
+    return render_template("sensors_manage.html", sensors=all_sensors, edit_sensor=sensor)
 
 
 # --- DELETE ---

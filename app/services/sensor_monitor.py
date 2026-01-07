@@ -1,10 +1,11 @@
-import time
-import threading
 import logging
 import random
+import threading
+import time
 from datetime import datetime, timedelta
+
 from app.extensions import db
-from app.models import Sensor, Event
+from app.models import Event, Sensor
 from app.services.event_service import bus
 
 logger = logging.getLogger(__name__)
@@ -146,9 +147,7 @@ class MotionSensorApp:
                         is_active = raw_val == GPIO.HIGH
 
                         if is_active != s["current_state"]:
-                            elapsed = (
-                                current_time - s["last_change"]
-                            ).total_seconds() * 1000
+                            elapsed = (current_time - s["last_change"]).total_seconds() * 1000
                             if elapsed > self.debounce_ms:
                                 self._handle_state_change(s, is_active, current_time)
                 time.sleep(0.05)
@@ -316,7 +315,6 @@ class MotionSensorApp:
 
                 # --- DOORS: Deduplication Logic ---
                 if "door" in s_type or "contact" in s_type:
-
                     # Check what the previous value for THIS sensor was
                     prev_val = last_states.get(sensor.name)
 
@@ -353,9 +351,7 @@ class MotionSensorApp:
             cutoff = datetime.now() - timedelta(hours=hours)
             # SQL Query is much faster than Pandas CSV read
             events = (
-                Event.query.filter(Event.timestamp >= cutoff)
-                .order_by(Event.timestamp.desc())
-                .all()
+                Event.query.filter(Event.timestamp >= cutoff).order_by(Event.timestamp.desc()).all()
             )
             return [e.to_dict() for e in events]
 

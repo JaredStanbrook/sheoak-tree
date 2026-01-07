@@ -1,15 +1,17 @@
 import json
-import numpy as np
-import pandas as pd
 from datetime import datetime
-from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-import xgboost as xgb
+
 import joblib
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import seaborn as sns
+import xgboost as xgb
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.preprocessing import LabelEncoder
+
 
 class SensorSequenceTrainer:
     """
@@ -36,7 +38,7 @@ class SensorSequenceTrainer:
     def load_data(self):
         """Load and parse JSON data"""
         print("Loading data from JSON...")
-        with open(self.json_path, 'r') as f:
+        with open(self.json_path, "r") as f:
             self.data = json.load(f)
         print(f"Loaded {len(self.data['sequences'])} sequences")
 
@@ -53,20 +55,20 @@ class SensorSequenceTrainer:
         features = {}
 
         # Basic sequence features
-        features['duration_minutes'] = sequence['duration_minutes']
-        features['time_since_last_seq_hours'] = sequence['time_since_last_seq_hours']
-        features['window_count'] = sequence['window_count']
-        features['total_events'] = len(sequence['raw_events'])
+        features["duration_minutes"] = sequence["duration_minutes"]
+        features["time_since_last_seq_hours"] = sequence["time_since_last_seq_hours"]
+        features["window_count"] = sequence["window_count"]
+        features["total_events"] = len(sequence["raw_events"])
 
         # Time-based features
-        start_time = datetime.fromisoformat(sequence['start_time'])
-        features['hour_of_day'] = start_time.hour
-        features['day_of_week'] = start_time.weekday()
-        features['is_night'] = 1 if (start_time.hour >= 22 or start_time.hour <= 6) else 0
-        features['is_weekend'] = 1 if start_time.weekday() >= 5 else 0
+        start_time = datetime.fromisoformat(sequence["start_time"])
+        features["hour_of_day"] = start_time.hour
+        features["day_of_week"] = start_time.weekday()
+        features["is_night"] = 1 if (start_time.hour >= 22 or start_time.hour <= 6) else 0
+        features["is_weekend"] = 1 if start_time.weekday() >= 5 else 0
 
         # Event-based features
-        if sequence['raw_events']:
+        if sequence["raw_events"]:
             # Sensor activity counts
             sensor_counts = {}
             sensor_types = {}
@@ -75,77 +77,84 @@ class SensorSequenceTrainer:
             door_opened = 0
             door_closed = 0
 
-            for event in sequence['raw_events']:
-                sensor = event['sensor_name']
-                sensor_type = event['sensor_type']
+            for event in sequence["raw_events"]:
+                sensor = event["sensor_name"]
+                sensor_type = event["sensor_type"]
 
                 sensor_counts[sensor] = sensor_counts.get(sensor, 0) + 1
                 sensor_types[sensor_type] = sensor_types.get(sensor_type, 0) + 1
 
-                if event['event'] == 'Motion Detected':
+                if event["event"] == "Motion Detected":
                     motion_detected += 1
-                elif event['event'] == 'Motion Cleared':
+                elif event["event"] == "Motion Cleared":
                     motion_cleared += 1
-                elif event['event'] == 'Door Opened':
+                elif event["event"] == "Door Opened":
                     door_opened += 1
-                elif event['event'] == 'Door Closed':
+                elif event["event"] == "Door Closed":
                     door_closed += 1
 
-            features['motion_detected_count'] = motion_detected
-            features['motion_cleared_count'] = motion_cleared
-            features['door_opened_count'] = door_opened
-            features['door_closed_count'] = door_closed
+            features["motion_detected_count"] = motion_detected
+            features["motion_cleared_count"] = motion_cleared
+            features["door_opened_count"] = door_opened
+            features["door_closed_count"] = door_closed
 
             # Unique sensor counts
-            features['unique_sensors'] = len(sensor_counts)
-            features['unique_sensor_types'] = len(sensor_types)
+            features["unique_sensors"] = len(sensor_counts)
+            features["unique_sensor_types"] = len(sensor_types)
 
             # Most active sensor
-            features['max_sensor_activations'] = max(sensor_counts.values()) if sensor_counts else 0
+            features["max_sensor_activations"] = max(sensor_counts.values()) if sensor_counts else 0
 
             # Event rate (events per minute)
-            features['event_rate'] = len(sequence['raw_events']) / max(sequence['duration_minutes'], 0.1)
+            features["event_rate"] = len(sequence["raw_events"]) / max(
+                sequence["duration_minutes"], 0.1
+            )
 
             # Time gaps between events
-            timestamps = [datetime.fromisoformat(e['timestamp']) for e in sequence['raw_events']]
+            timestamps = [datetime.fromisoformat(e["timestamp"]) for e in sequence["raw_events"]]
             if len(timestamps) > 1:
-                time_diffs = [(timestamps[i+1] - timestamps[i]).total_seconds()
-                             for i in range(len(timestamps)-1)]
-                features['avg_time_between_events'] = np.mean(time_diffs)
-                features['max_time_between_events'] = np.max(time_diffs)
-                features['min_time_between_events'] = np.min(time_diffs)
-                features['std_time_between_events'] = np.std(time_diffs)
+                time_diffs = [
+                    (timestamps[i + 1] - timestamps[i]).total_seconds()
+                    for i in range(len(timestamps) - 1)
+                ]
+                features["avg_time_between_events"] = np.mean(time_diffs)
+                features["max_time_between_events"] = np.max(time_diffs)
+                features["min_time_between_events"] = np.min(time_diffs)
+                features["std_time_between_events"] = np.std(time_diffs)
             else:
-                features['avg_time_between_events'] = 0
-                features['max_time_between_events'] = 0
-                features['min_time_between_events'] = 0
-                features['std_time_between_events'] = 0
+                features["avg_time_between_events"] = 0
+                features["max_time_between_events"] = 0
+                features["min_time_between_events"] = 0
+                features["std_time_between_events"] = 0
 
             # State transition patterns
-            state_changes = sum(1 for i in range(len(sequence['raw_events'])-1)
-                              if sequence['raw_events'][i]['state'] != sequence['raw_events'][i+1]['state'])
-            features['state_transitions'] = state_changes
+            state_changes = sum(
+                1
+                for i in range(len(sequence["raw_events"]) - 1)
+                if sequence["raw_events"][i]["state"] != sequence["raw_events"][i + 1]["state"]
+            )
+            features["state_transitions"] = state_changes
 
             # Sensor diversity (entropy-like measure)
-            sensor_probs = np.array(list(sensor_counts.values())) / len(sequence['raw_events'])
-            features['sensor_diversity'] = -np.sum(sensor_probs * np.log2(sensor_probs + 1e-10))
+            sensor_probs = np.array(list(sensor_counts.values())) / len(sequence["raw_events"])
+            features["sensor_diversity"] = -np.sum(sensor_probs * np.log2(sensor_probs + 1e-10))
 
         else:
             # Default values for empty sequences
-            features['motion_detected_count'] = 0
-            features['motion_cleared_count'] = 0
-            features['door_opened_count'] = 0
-            features['door_closed_count'] = 0
-            features['unique_sensors'] = 0
-            features['unique_sensor_types'] = 0
-            features['max_sensor_activations'] = 0
-            features['event_rate'] = 0
-            features['avg_time_between_events'] = 0
-            features['max_time_between_events'] = 0
-            features['min_time_between_events'] = 0
-            features['std_time_between_events'] = 0
-            features['state_transitions'] = 0
-            features['sensor_diversity'] = 0
+            features["motion_detected_count"] = 0
+            features["motion_cleared_count"] = 0
+            features["door_opened_count"] = 0
+            features["door_closed_count"] = 0
+            features["unique_sensors"] = 0
+            features["unique_sensor_types"] = 0
+            features["max_sensor_activations"] = 0
+            features["event_rate"] = 0
+            features["avg_time_between_events"] = 0
+            features["max_time_between_events"] = 0
+            features["min_time_between_events"] = 0
+            features["std_time_between_events"] = 0
+            features["state_transitions"] = 0
+            features["sensor_diversity"] = 0
 
         return features
 
@@ -156,10 +165,10 @@ class SensorSequenceTrainer:
         feature_list = []
         labels = []
 
-        for seq in self.data['sequences']:
+        for seq in self.data["sequences"]:
             # Skip sequences without valid labels
-            label = seq.get('label')
-            if not label or label.strip() == '':
+            label = seq.get("label")
+            if not label or label.strip() == "":
                 continue
 
             features = self.extract_features(seq)
@@ -185,9 +194,11 @@ class SensorSequenceTrainer:
         # Encode labels
         self.y = self.label_encoder.fit_transform(labels)
 
-        print(f"\nExtracted {len(self.feature_names)} features from {len(labels)} labeled sequences")
+        print(
+            f"\nExtracted {len(self.feature_names)} features from {len(labels)} labeled sequences"
+        )
         print(f"Feature names: {self.feature_names}")
-        print(f"\nLabel distribution:")
+        print("\nLabel distribution:")
         print(label_counts)
 
         # Check class balance
@@ -204,9 +215,9 @@ class SensorSequenceTrainer:
             test_size: Proportion of data for testing
             random_state: Random seed for reproducibility
         """
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("Training Random Forest Classifier")
-        print("="*60)
+        print("=" * 60)
 
         # Check if we have enough data
         unique_classes = len(np.unique(self.y))
@@ -243,17 +254,18 @@ class SensorSequenceTrainer:
         if use_grid_search:
             # Hyperparameter tuning
             param_grid = {
-                'n_estimators': [100, 200, 300],
-                'max_depth': [10, 20, 30, None],
-                'min_samples_split': [2, 5, 10],
-                'min_samples_leaf': [1, 2, 4],
-                'max_features': ['sqrt', 'log2']
+                "n_estimators": [100, 200, 300],
+                "max_depth": [10, 20, 30, None],
+                "min_samples_split": [2, 5, 10],
+                "min_samples_leaf": [1, 2, 4],
+                "max_features": ["sqrt", "log2"],
             }
 
             print(f"\nPerforming grid search with {n_splits}-fold cross-validation...")
             rf = RandomForestClassifier(random_state=random_state)
-            grid_search = GridSearchCV(rf, param_grid, cv=n_splits, scoring='accuracy',
-                                      n_jobs=-1, verbose=1)
+            grid_search = GridSearchCV(
+                rf, param_grid, cv=n_splits, scoring="accuracy", n_jobs=-1, verbose=1
+            )
             grid_search.fit(X_train, y_train)
 
             print(f"Best parameters: {grid_search.best_params_}")
@@ -274,12 +286,11 @@ class SensorSequenceTrainer:
         print("\nClassification Report:")
 
         # Get class names, handling None values
-        target_names = [str(name) if name is not None else 'Unknown'
-                       for name in self.label_encoder.classes_]
+        target_names = [
+            str(name) if name is not None else "Unknown" for name in self.label_encoder.classes_
+        ]
 
-        print(classification_report(y_test, y_pred,
-                                   target_names=target_names,
-                                   zero_division=0))
+        print(classification_report(y_test, y_pred, target_names=target_names, zero_division=0))
 
         # Confusion matrix
         cm = confusion_matrix(y_test, y_pred)
@@ -298,9 +309,9 @@ class SensorSequenceTrainer:
             test_size: Proportion of data for testing
             random_state: Random seed for reproducibility
         """
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("Training XGBoost Classifier")
-        print("="*60)
+        print("=" * 60)
 
         # Check if we have enough data
         unique_classes = len(np.unique(self.y))
@@ -318,9 +329,7 @@ class SensorSequenceTrainer:
         else:
             use_grid_search = True
             if n_splits < 5:
-                print(
-                    f"\nUsing {n_splits}-fold CV instead of 5-fold due to small class sizes"
-                )
+                print(f"\nUsing {n_splits}-fold CV instead of 5-fold due to small class sizes")
 
         # Split data
         try:
@@ -339,17 +348,18 @@ class SensorSequenceTrainer:
         if use_grid_search:
             # Hyperparameter tuning
             param_grid = {
-                'n_estimators': [100, 200, 300],
-                'max_depth': [3, 5, 7, 10],
-                'learning_rate': [0.01, 0.1, 0.3],
-                'subsample': [0.8, 1.0],
-                'colsample_bytree': [0.8, 1.0]
+                "n_estimators": [100, 200, 300],
+                "max_depth": [3, 5, 7, 10],
+                "learning_rate": [0.01, 0.1, 0.3],
+                "subsample": [0.8, 1.0],
+                "colsample_bytree": [0.8, 1.0],
             }
 
             print(f"\nPerforming grid search with {n_splits}-fold cross-validation...")
-            xgb_clf = xgb.XGBClassifier(random_state=random_state, eval_metric='mlogloss')
-            grid_search = GridSearchCV(xgb_clf, param_grid, cv=n_splits, scoring='accuracy',
-                                      n_jobs=-1, verbose=1)
+            xgb_clf = xgb.XGBClassifier(random_state=random_state, eval_metric="mlogloss")
+            grid_search = GridSearchCV(
+                xgb_clf, param_grid, cv=n_splits, scoring="accuracy", n_jobs=-1, verbose=1
+            )
             grid_search.fit(X_train, y_train)
 
             print(f"Best parameters: {grid_search.best_params_}")
@@ -359,8 +369,9 @@ class SensorSequenceTrainer:
         else:
             # Train with default parameters
             print("\nTraining with default parameters...")
-            self.xgb_model = xgb.XGBClassifier(n_estimators=100, random_state=random_state,
-                                              eval_metric='mlogloss')
+            self.xgb_model = xgb.XGBClassifier(
+                n_estimators=100, random_state=random_state, eval_metric="mlogloss"
+            )
             self.xgb_model.fit(X_train, y_train)
 
         # Evaluate on test set
@@ -371,12 +382,11 @@ class SensorSequenceTrainer:
         print("\nClassification Report:")
 
         # Get class names, handling None values
-        target_names = [str(name) if name is not None else 'Unknown'
-                       for name in self.label_encoder.classes_]
+        target_names = [
+            str(name) if name is not None else "Unknown" for name in self.label_encoder.classes_
+        ]
 
-        print(classification_report(y_test, y_pred,
-                                   target_names=target_names,
-                                   zero_division=0))
+        print(classification_report(y_test, y_pred, target_names=target_names, zero_division=0))
 
         # Confusion matrix
         cm = confusion_matrix(y_test, y_pred)
@@ -390,39 +400,44 @@ class SensorSequenceTrainer:
     def _plot_confusion_matrix(self, cm, classes, model_name):
         """Plot confusion matrix"""
         plt.figure(figsize=(10, 8))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                   xticklabels=classes, yticklabels=classes)
-        plt.title(f'Confusion Matrix - {model_name}')
-        plt.ylabel('True Label')
-        plt.xlabel('Predicted Label')
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=classes, yticklabels=classes)
+        plt.title(f"Confusion Matrix - {model_name}")
+        plt.ylabel("True Label")
+        plt.xlabel("Predicted Label")
         plt.tight_layout()
-        plt.savefig(f'confusion_matrix_{model_name.lower().replace(" ", "_")}.png')
-        print(f"Confusion matrix saved as 'confusion_matrix_{model_name.lower().replace(' ', '_')}.png'")
+        plt.savefig(f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png")
+        print(
+            f"Confusion matrix saved as 'confusion_matrix_{model_name.lower().replace(' ', '_')}.png'"
+        )
         plt.close()
 
     def _plot_feature_importance(self, importances, model_name):
         """Plot feature importance"""
-        feature_importance_df = pd.DataFrame({
-            'feature': self.feature_names,
-            'importance': importances
-        }).sort_values('importance', ascending=False)
+        feature_importance_df = pd.DataFrame(
+            {"feature": self.feature_names, "importance": importances}
+        ).sort_values("importance", ascending=False)
 
         plt.figure(figsize=(12, 8))
-        plt.barh(range(len(feature_importance_df)), feature_importance_df['importance'])
-        plt.yticks(range(len(feature_importance_df)), feature_importance_df['feature'])
-        plt.xlabel('Importance')
-        plt.title(f'Feature Importance - {model_name}')
+        plt.barh(range(len(feature_importance_df)), feature_importance_df["importance"])
+        plt.yticks(range(len(feature_importance_df)), feature_importance_df["feature"])
+        plt.xlabel("Importance")
+        plt.title(f"Feature Importance - {model_name}")
         plt.tight_layout()
-        plt.savefig(f'feature_importance_{model_name.lower().replace(" ", "_")}.png')
-        print(f"Feature importance plot saved as 'feature_importance_{model_name.lower().replace(' ', '_')}.png'")
+        plt.savefig(f"feature_importance_{model_name.lower().replace(' ', '_')}.png")
+        print(
+            f"Feature importance plot saved as 'feature_importance_{model_name.lower().replace(' ', '_')}.png'"
+        )
         plt.close()
 
         print(f"\nTop 10 Most Important Features ({model_name}):")
         print(feature_importance_df.head(10).to_string(index=False))
 
-    def save_models(self, rf_path='random_forest_model.pkl',
-                   xgb_path='xgboost_model.pkl',
-                   encoder_path='label_encoder.pkl'):
+    def save_models(
+        self,
+        rf_path="random_forest_model.pkl",
+        xgb_path="xgboost_model.pkl",
+        encoder_path="label_encoder.pkl",
+    ):
         """Save trained models and label encoder"""
         if self.rf_model:
             joblib.dump(self.rf_model, rf_path)
@@ -435,7 +450,7 @@ class SensorSequenceTrainer:
         joblib.dump(self.label_encoder, encoder_path)
         print(f"Label encoder saved to '{encoder_path}'")
 
-    def predict_sequence(self, sequence, model='rf'):
+    def predict_sequence(self, sequence, model="rf"):
         """
         Predict label for a new sequence
 
@@ -455,18 +470,17 @@ class SensorSequenceTrainer:
                 X_new[col] = 0
         X_new = X_new[self.feature_names]
 
-        if model == 'rf' and self.rf_model:
+        if model == "rf" and self.rf_model:
             pred = self.rf_model.predict(X_new)[0]
             proba = self.rf_model.predict_proba(X_new)[0]
-        elif model == 'xgb' and self.xgb_model:
+        elif model == "xgb" and self.xgb_model:
             pred = self.xgb_model.predict(X_new)[0]
             proba = self.xgb_model.predict_proba(X_new)[0]
         else:
             raise ValueError("Model not trained or invalid model type")
 
         label = self.label_encoder.inverse_transform([pred])[0]
-        proba_dict = {self.label_encoder.classes_[i]: prob
-                     for i, prob in enumerate(proba)}
+        proba_dict = {self.label_encoder.classes_[i]: prob for i, prob in enumerate(proba)}
 
         return label, proba_dict
 
@@ -474,24 +488,24 @@ class SensorSequenceTrainer:
 def main():
     """Main training pipeline"""
     # Initialize trainer
-    trainer = SensorSequenceTrainer('../../sequence_labels_60_300_3.json')
+    trainer = SensorSequenceTrainer("../../sequence_labels_60_300_3.json")
 
     # Load and prepare data
     trainer.load_data()
     trainer.prepare_features()
 
     # Train both models
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TRAINING PIPELINE")
-    print("="*60)
+    print("=" * 60)
 
     rf_accuracy = trainer.train_random_forest()
     xgb_accuracy = trainer.train_xgboost()
 
     # Compare models
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("MODEL COMPARISON")
-    print("="*60)
+    print("=" * 60)
     print(f"Random Forest Test Accuracy: {rf_accuracy:.4f}")
     print(f"XGBoost Test Accuracy: {xgb_accuracy:.4f}")
 
@@ -505,9 +519,9 @@ def main():
     # Save models
     trainer.save_models()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Training complete! Models and visualizations saved.")
-    print("="*60)
+    print("=" * 60)
 
 
 if __name__ == "__main__":
