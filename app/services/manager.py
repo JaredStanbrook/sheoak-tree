@@ -1,5 +1,6 @@
-import os
 import logging
+import os
+
 from flask import current_app
 
 logger = logging.getLogger(__name__)
@@ -38,9 +39,7 @@ class ServiceManager:
                 except Exception as e:
                     logger.error(f"Failed to initialize MotionSensorApp: {e}")
             else:
-                logger.info(
-                    "Skipping MotionSensorApp initialization (Main process in Debug mode)"
-                )
+                logger.info("Skipping MotionSensorApp initialization (Main process in Debug mode)")
 
         return self._motion_app
 
@@ -89,9 +88,7 @@ class ServiceManager:
                 except Exception as e:
                     logger.error(f"Failed to initialize PresenceMonitor: {e}")
             else:
-                logger.info(
-                    "Skipping PresenceMonitor initialization (Main process in Debug mode)"
-                )
+                logger.info("Skipping PresenceMonitor initialization (Main process in Debug mode)")
 
         return self._presence_monitor
 

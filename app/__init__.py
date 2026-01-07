@@ -1,8 +1,10 @@
 import logging
+
 from flask import Flask, jsonify, render_template, request
+
+from app.extensions import db, migrate, socketio
+from app.models import Event, Sensor
 from config import Config
-from app.extensions import socketio, db, migrate
-from app.models import Sensor, Event
 
 # Configure logging
 logging.basicConfig(
@@ -21,8 +23,8 @@ def create_app(config_class=Config):
     socketio.init_app(app, path="/sheoak/socket.io")
 
     # Register Blueprints
-    from app.routes.main import bp as main_bp
     from app.routes.api import bp as api_bp
+    from app.routes.main import bp as main_bp
     from app.routes.sensors import bp as sensors_bp
 
     app.register_blueprint(main_bp)

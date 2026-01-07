@@ -1,19 +1,21 @@
 import os
 from datetime import datetime
 from functools import wraps
+
 from flask import (
     Blueprint,
-    render_template,
     Response,
-    stream_with_context,
-    jsonify,
-    send_file,
     current_app,
+    jsonify,
+    render_template,
+    send_file,
     send_from_directory,
+    stream_with_context,
 )
-from app.services.event_service import bus
 from flask_socketio import emit
+
 from app.extensions import socketio
+from app.services.event_service import bus
 from app.services.manager import get_services
 
 bp = Blueprint("main", __name__)
@@ -73,7 +75,7 @@ def serve_pdf(filename):
 def download_activity():
     app_svc = get_services().get_motion_app()
     if os.path.exists(app_svc.log_file):
-        filename = f'sensor_activity_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        filename = f"sensor_activity_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         return send_file(app_svc.log_file, as_attachment=True, download_name=filename)
     return jsonify({"error": "Activity log file not found"}), 404
 
