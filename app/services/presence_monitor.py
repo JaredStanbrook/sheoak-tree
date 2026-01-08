@@ -1,3 +1,5 @@
+"""Presence Monitor Service"""
+
 import logging
 import multiprocessing
 import queue
@@ -9,6 +11,7 @@ from netaddr import EUI
 
 from app.extensions import db, socketio
 from app.models import Device, PresenceEvent
+from app.services.event_service import bus
 
 # Import the isolated worker function
 from app.services.scanner_worker import scanner_process_entry
@@ -17,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class PresenceMonitor:
+    """Monitors device presence on the network using an isolated scanner process."""
+
     def __init__(self, app, target_ip, community, scan_interval=60):
         self.app = app
         self.target_ip = target_ip
@@ -172,7 +177,6 @@ class PresenceMonitor:
         if device.track_presence:
             db.session.add(PresenceEvent(device_id=device.id, event_type=event))
 
-            # UPDATED: Use bus.emit instead of socketio.emit
             bus.emit(
                 "presence_update",
                 {

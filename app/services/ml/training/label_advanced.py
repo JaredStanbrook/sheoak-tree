@@ -6,24 +6,24 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 
-class SensorSequenceProcessor:
+class hardwaresequenceProcessor:
     """
-    Processes sensor activity data into sequences for labeling.
+    Processes hardware activity data into sequences for labeling.
     Handles windowing, sequence identification, persistent storage, and incremental updates.
     """
 
-    def __init__(self, csv_path: str = "sensor_activity.csv"):
+    def __init__(self, csv_path: str = "hardware_activity.csv"):
         """
         Initialize the processor.
 
         Args:
-            csv_path: Path to the sensor activity CSV file
+            csv_path: Path to the hardware activity CSV file
         """
         self.csv_path = csv_path
         self.df = None
         self.pivoted_windowed = None
         self.sequences = []
-        self.sensor_names = []
+        self.hardware_names = []
 
         # Current configuration
         self.window_size = 60
@@ -40,7 +40,7 @@ class SensorSequenceProcessor:
 
     def load_data(self, from_timestamp: Optional[pd.Timestamp] = None) -> Dict:
         """
-        Load raw sensor data from CSV, optionally starting from a specific timestamp.
+        Load raw hardware data from CSV, optionally starting from a specific timestamp.
 
         Args:
             from_timestamp: Load only data after this timestamp (for incremental processing)
@@ -79,7 +79,7 @@ class SensorSequenceProcessor:
         incremental: bool = False,
     ) -> Dict:
         """
-        Process sensor data into sequences based on configuration.
+        Process hardware data into sequences based on configuration.
 
         Args:
             window_size: Seconds per window (default 60)
@@ -118,13 +118,13 @@ class SensorSequenceProcessor:
         try:
             # Pivot data to multivariate format
             pivoted = self.df.pivot_table(
-                index="timestamp", columns="sensor_name", values="state", aggfunc="sum"
+                index="timestamp", columns="hardware_name", values="state", aggfunc="sum"
             )
             pivoted = pivoted.fillna(0)
 
             # Resample into fixed windows
             self.pivoted_windowed = pivoted.resample(f"{window_size}s").sum().fillna(0)
-            self.sensor_names = list(self.pivoted_windowed.columns)
+            self.hardware_names = list(self.pivoted_windowed.columns)
 
             # Identify sequences
             self.sequences = self._identify_sequences()
@@ -141,7 +141,7 @@ class SensorSequenceProcessor:
                 "window_count": len(self.pivoted_windowed),
                 "sequence_count": len(self.sequences),
                 "new_sequences": len(self.sequences),
-                "sensor_names": self.sensor_names,
+                "hardware_names": self.hardware_names,
                 "config": {
                     "window_size": window_size,
                     "sequence_gap_threshold": sequence_gap_threshold,
@@ -198,24 +198,24 @@ class SensorSequenceProcessor:
 
             # Pivot new data
             pivoted_new = new_data.pivot_table(
-                index="timestamp", columns="sensor_name", values="state", aggfunc="sum"
+                index="timestamp", columns="hardware_name", values="state", aggfunc="sum"
             )
             pivoted_new = pivoted_new.fillna(0)
 
-            # Ensure all existing sensors are present in new data
-            for sensor in self.sensor_names:
-                if sensor not in pivoted_new.columns:
-                    pivoted_new[sensor] = 0
+            # Ensure all existing hardwares are present in new data
+            for hardware in self.hardware_names:
+                if hardware not in pivoted_new.columns:
+                    pivoted_new[hardware] = 0
 
-            # Also check for new sensors
-            for sensor in pivoted_new.columns:
-                if sensor not in self.sensor_names:
-                    # Add new sensor to existing data with zeros
-                    self.pivoted_windowed[sensor] = 0
-                    self.sensor_names.append(sensor)
+            # Also check for new hardwares
+            for hardware in pivoted_new.columns:
+                if hardware not in self.hardware_names:
+                    # Add new hardware to existing data with zeros
+                    self.pivoted_windowed[hardware] = 0
+                    self.hardware_names.append(hardware)
 
             # Reorder columns to match
-            pivoted_new = pivoted_new[self.sensor_names]
+            pivoted_new = pivoted_new[self.hardware_names]
 
             # Resample new data into windows
             pivoted_windowed_new = pivoted_new.resample(f"{self.window_size}s").sum().fillna(0)
@@ -257,7 +257,7 @@ class SensorSequenceProcessor:
                 "success": True,
                 "window_count": len(self.pivoted_windowed),
                 "sequence_count": len(self.sequences),
-                "sensor_names": self.sensor_names,
+                "hardware_names": self.hardware_names,
                 "last_processed_timestamp": self.last_processed_timestamp.isoformat(),
                 "last_processed_row": self.last_processed_row,
                 "mode": "incremental",
@@ -483,7 +483,7 @@ class SensorSequenceProcessor:
         sequence_id: int,
     ) -> Dict:
         """Create a sequence dictionary with all necessary information."""
-        # Get raw sensor events for this sequence from the original dataframe
+        # Get raw hardware events for this sequence from the original dataframe
         raw_events = []
         if self.df is not None:
             # Filter events that fall within this sequence's time range
@@ -498,7 +498,7 @@ class SensorSequenceProcessor:
             "start_time": start_time,
             "end_time": end_time,
             "windows": windows,
-            "raw_events": raw_events,  # Store the original sensor events
+            "raw_events": raw_events,  # Store the original hardware events
             "duration_minutes": (end_time - start_time).total_seconds() / 60,
             "time_since_last_seq_hours": time_since_last / 3600,
             "window_count": len(windows),
@@ -530,10 +530,10 @@ class SensorSequenceProcessor:
 
         # Calculate activity summary
         activity_summary = {}
-        for sensor in sequence_data.columns:
-            total_activity = sequence_data[sensor].sum()
+        for hardware in sequence_data.columns:
+            total_activity = sequence_data[hardware].sum()
             if total_activity > 0:
-                activity_summary[sensor] = float(total_activity)
+                activity_summary[hardware] = float(total_activity)
 
         # Get all windows for detailed view
         all_windows = []
@@ -541,7 +541,7 @@ class SensorSequenceProcessor:
             all_windows.append(
                 {
                     "timestamp": timestamp.isoformat(),
-                    "data": {sensor: float(val) for sensor, val in row.items()},
+                    "data": {hardware: float(val) for hardware, val in row.items()},
                 }
             )
 
@@ -551,8 +551,8 @@ class SensorSequenceProcessor:
             raw_events.append(
                 {
                     "timestamp": event["timestamp"],
-                    "sensor_name": event["sensor_name"],
-                    "sensor_type": event["sensor_type"],
+                    "hardware_name": event["hardware_name"],
+                    "hardware_type": event["hardware_type"],
                     "gpio_pin": event["gpio_pin"],
                     "state": event["state"],
                     "event": event["event"],
@@ -570,7 +570,7 @@ class SensorSequenceProcessor:
             "activity_summary": activity_summary,
             "all_windows": all_windows,
             "raw_events": raw_events,
-            "sensor_names": self.sensor_names,
+            "hardware_names": self.hardware_names,
         }
 
     def get_sequence_list(self, page: int = 1, per_page: int = 20) -> Dict:
@@ -688,7 +688,7 @@ class SensorSequenceProcessor:
                     else None,
                     "last_processed_row": self.last_processed_row,
                     "csv_path": self.csv_path,
-                    "sensor_names": self.sensor_names,
+                    "hardware_names": self.hardware_names,
                 },
                 "config": {
                     "window_size": self.window_size,
@@ -710,8 +710,8 @@ class SensorSequenceProcessor:
                                 "timestamp": evt["timestamp"].isoformat()
                                 if isinstance(evt["timestamp"], pd.Timestamp)
                                 else evt["timestamp"],
-                                "sensor_name": evt["sensor_name"],
-                                "sensor_type": evt["sensor_type"],
+                                "hardware_name": evt["hardware_name"],
+                                "hardware_type": evt["hardware_type"],
                                 "gpio_pin": evt["gpio_pin"],
                                 "state": evt["state"],
                                 "event": evt["event"],
@@ -764,7 +764,7 @@ class SensorSequenceProcessor:
                 else None
             )
             self.last_processed_row = metadata["last_processed_row"]
-            self.sensor_names = metadata["sensor_names"]
+            self.hardware_names = metadata["hardware_names"]
             self.csv_path = metadata.get("csv_path", self.csv_path)
 
             # Restore config
@@ -784,8 +784,8 @@ class SensorSequenceProcessor:
                             "timestamp": evt["timestamp"].isoformat()
                             if isinstance(evt["timestamp"], pd.Timestamp)
                             else evt["timestamp"],
-                            "sensor_name": evt.get("sensor_name"),
-                            "sensor_type": evt.get("sensor_type"),
+                            "hardware_name": evt.get("hardware_name"),
+                            "hardware_type": evt.get("hardware_type"),
                             "gpio_pin": evt.get("gpio_pin"),
                             "state": evt.get("state"),
                             "event": evt.get("event"),
@@ -841,14 +841,14 @@ class SensorSequenceProcessor:
 
             # Pivot and window the data
             pivoted = df_full.pivot_table(
-                index="timestamp", columns="sensor_name", values="state", aggfunc="sum"
+                index="timestamp", columns="hardware_name", values="state", aggfunc="sum"
             )
             pivoted = pivoted.fillna(0)
 
-            # Ensure all known sensors are present
-            for sensor in self.sensor_names:
-                if sensor not in pivoted.columns:
-                    pivoted[sensor] = 0
+            # Ensure all known hardwares are present
+            for hardware in self.hardware_names:
+                if hardware not in pivoted.columns:
+                    pivoted[hardware] = 0
 
             self.pivoted_windowed = pivoted.resample(f"{self.window_size}s").sum().fillna(0)
         except Exception as e:

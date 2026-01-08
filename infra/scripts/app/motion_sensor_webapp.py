@@ -1,34 +1,34 @@
 #!/usr/bin/env python3
 """
 Motion Sensor Web App for Raspberry Pi
-Live display of NC (Normally Closed) contact sensors via web interface
+Live display of NC (Normally Closed) contact hardwares via web interface
 Enhanced with persistent logging and frequency-based activity graphs in Perth timezone
-SENSOR WIRING CONFIGURATIONS:
-1. All Sensors: NC (Normally Closed) contacts
+HARDWARE WIRING CONFIGURATIONS:
+1. All hardwares: NC (Normally Closed) contacts
    - Use internal pull-up resistors
    - With 1k Ohm resistor in series for noise reduction
    - HIGH = motion detected, LOW = no motion
 """
+
+import csv
+import logging
+import os
+import threading
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List
+
+import RPi.GPIO as GPIO
 from flask import (
     Flask,
-    render_template,
     jsonify,
-    send_file,
-    send_from_directory,
+    render_template,
     request,
+    send_file,
 )
-from label_advanced import SensorSequenceProcessor
 from flask_socketio import SocketIO, emit
-import RPi.GPIO as GPIO
-import json
-import time
-import threading
-import logging
-import csv
-import os
-from datetime import datetime, timedelta
-from dataclasses import dataclass
-from typing import List, Dict, Any
+from label_advanced import hardwaresequenceProcessor
 
 # Try to import pandas for data processing
 try:
@@ -39,9 +39,7 @@ except ImportError:
     PANDAS_AVAILABLE = False
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 if not PANDAS_AVAILABLE:
@@ -50,26 +48,25 @@ if not PANDAS_AVAILABLE:
 
 @dataclass
 class MotionSensor:
-    """Class to hold sensor information"""
+    """Class to hold hardware information"""
 
     pin: int
     name: str
-    sensor_type: str = "motion"  # "motion" or "door"
+    hardware_type: str = "motion"  # "motion" or "door"
 
 
 # Flask app setup
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "motion_sensor_secret_key_2024"
+app.config["SECRET_KEY"] = "motion_hardware_secret_key_2024"
 socketio = SocketIO(app, cors_allowed_origins="*", path="/sheoak/socket.io")
 
 
 class MotionSensorWebApp:
     def __init__(self, socketio_instance, debounce_ms=100):
-
         self.socketio = socketio_instance
-        # Define sensors with GPIO pins, names, and types
+        # Define hardwares with GPIO pins, names, and types
         # 23,4,5 GPIO are broken
-        self.sensors = [
+        self.hardwares = [
             MotionSensor(2, "Living Room", "motion"),
             MotionSensor(6, "Hallway", "motion"),
             MotionSensor(18, "Door", "door"),
@@ -77,16 +74,16 @@ class MotionSensorWebApp:
         ]
 
         # Sensor states
-        self.sensor_states = [False] * len(self.sensors)
-        self.previous_states = [False] * len(self.sensors)
+        self.hardware_states = [False] * len(self.hardwares)
+        self.previous_states = [False] * len(self.hardwares)
         self.last_activity = {}
 
         # Debounce tracking
         self.debounce_ms = debounce_ms
-        self.last_change_time = {sensor.name: datetime.min for sensor in self.sensors}
+        self.last_change_time = {hardware.name: datetime.min for hardware in self.hardwares}
 
         # Activity logging
-        self.log_file = "sensor_activity.csv"
+        self.log_file = "hardware_activity.csv"
         self.setup_logging()
 
         # Setup GPIO
@@ -94,7 +91,7 @@ class MotionSensorWebApp:
 
         # Start monitoring thread
         self.monitoring = True
-        self.monitor_thread = threading.Thread(target=self.monitor_sensors, daemon=True)
+        self.monitor_thread = threading.Thread(target=self.monitor_hardwares, daemon=True)
         self.monitor_thread.start()
 
     def setup_logging(self):
@@ -105,8 +102,8 @@ class MotionSensorWebApp:
                 writer.writerow(
                     [
                         "timestamp",
-                        "sensor_name",
-                        "sensor_type",
+                        "hardware_name",
+                        "hardware_type",
                         "gpio_pin",
                         "state",
                         "event",
@@ -114,8 +111,8 @@ class MotionSensorWebApp:
                 )
             logger.info(f"Created new activity log file: {self.log_file}")
 
-    def log_activity(self, sensor: MotionSensor, state: bool, event: str):
-        """Log sensor activity to CSV file using system local time (Perth)"""
+    def log_activity(self, hardware: MotionSensor, state: bool, event: str):
+        """Log hardware activity to CSV file using system local time (Perth)"""
         try:
             # Use system local time (should be set to Perth timezone)
             local_time = datetime.now()
@@ -125,9 +122,9 @@ class MotionSensorWebApp:
                 writer.writerow(
                     [
                         local_time.isoformat(),
-                        sensor.name,
-                        sensor.sensor_type,
-                        sensor.pin,
+                        hardware.name,
+                        hardware.hardware_type,
+                        hardware.pin,
                         1 if state else 0,
                         event,
                     ]
@@ -136,33 +133,33 @@ class MotionSensorWebApp:
             logger.error(f"Error logging activity: {e}")
 
     def setup_gpio(self):
-        """Initialize GPIO pins for sensors"""
+        """Initialize GPIO pins for hardwares"""
         try:
             # Set GPIO mode
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
 
-            # Initialize sensor pins based on sensor type
-            for sensor in self.sensors:
-                GPIO.setup(sensor.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            # Initialize hardware pins based on hardware type
+            for hardware in self.hardwares:
+                GPIO.setup(hardware.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
                 logger.info(
-                    f"Initialized {sensor.name} ({sensor.sensor_type}) on GPIO pin {sensor.pin}"
+                    f"Initialized {hardware.name} ({hardware.hardware_type}) on GPIO pin {hardware.pin}"
                 )
 
         except Exception as e:
             logger.error(f"Failed to setup GPIO: {e}")
             raise
 
-    def read_sensors(self) -> bool:
-        """Read all sensors with debounce and return True if any state changed"""
+    def read_hardwares(self) -> bool:
+        """Read all hardwares with debounce and return True if any state changed"""
         state_changed = False
 
-        for i, sensor in enumerate(self.sensors):
+        for i, hardware in enumerate(self.hardwares):
             try:
-                raw_reading = GPIO.input(sensor.pin)
+                raw_reading = GPIO.input(hardware.pin)
 
                 # Convert raw GPIO reading into logical state
-                if sensor.sensor_type == "door":
+                if hardware.hardware_type == "door":
                     new_state = raw_reading == GPIO.HIGH  # HIGH = door open
                 else:
                     new_state = raw_reading == GPIO.HIGH  # HIGH = motion detected
@@ -170,91 +167,85 @@ class MotionSensorWebApp:
                 # Debounce check
                 if new_state != self.previous_states[i]:
                     now = datetime.now()
-                    elapsed_ms = (
-                        now - self.last_change_time[sensor.name]
-                    ).total_seconds() * 1000
+                    elapsed_ms = (now - self.last_change_time[hardware.name]).total_seconds() * 1000
                     if elapsed_ms >= self.debounce_ms:
                         # Accept state change
                         self.previous_states[i] = new_state
-                        self.sensor_states[i] = new_state
-                        self.last_change_time[sensor.name] = now
+                        self.hardware_states[i] = new_state
+                        self.last_change_time[hardware.name] = now
                         state_changed = True
                         # Update last activity time (using system local time)
-                        self.last_activity[sensor.name] = datetime.now()
+                        self.last_activity[hardware.name] = datetime.now()
 
                         # Log + emit
                         event = (
                             "Motion Detected"
-                            if sensor.sensor_type == "motion" and new_state
+                            if hardware.hardware_type == "motion" and new_state
                             else (
                                 "Motion Cleared"
-                                if sensor.sensor_type == "motion"
+                                if hardware.hardware_type == "motion"
                                 else (
                                     "Door Opened"
-                                    if sensor.sensor_type == "door" and new_state
+                                    if hardware.hardware_type == "door" and new_state
                                     else "Door Closed"
                                 )
                             )
                         )
-                        logger.info(f"{event} - {sensor.name}")
-                        self.log_activity(sensor, new_state, event)
+                        logger.info(f"{event} - {hardware.name}")
+                        self.log_activity(hardware, new_state, event)
                         # Emit real-time update via WebSocket
                         self.socketio.emit(
-                            "sensor_update",
+                            "hardware_update",
                             {
-                                "sensor_name": sensor.name,
-                                "sensor_index": i,
-                                "sensor_type": sensor.sensor_type,
+                                "hardware_name": hardware.name,
+                                "hardware_index": i,
+                                "hardware_type": hardware.hardware_type,
                                 "value": 1 if new_state else 0,
                                 "event": event,
                                 "timestamp": datetime.now().isoformat(),
-                                "all_sensors": self.get_sensor_data(),
+                                "all_hardwares": self.get_hardware_data(),
                             },
                         )
 
             except Exception as e:
-                logger.error(f"Error reading sensor {sensor.name}: {e}")
+                logger.error(f"Error reading hardware {hardware.name}: {e}")
 
         return state_changed
 
-    def get_sensor_data(self) -> List[Dict[str, Any]]:
-        """Get current sensor data"""
+    def get_hardware_data(self) -> List[Dict[str, Any]]:
+        """Get current hardware data"""
         data = []
 
-        for i, sensor in enumerate(self.sensors):
-            last_activity = self.last_activity.get(sensor.name)
+        for i, hardware in enumerate(self.hardwares):
+            last_activity = self.last_activity.get(hardware.name)
 
-            # Determine status based on sensor type
-            if sensor.sensor_type == "motion":
-                status = "Motion Detected" if self.sensor_states[i] else "No Motion"
-            elif sensor.sensor_type == "door":
-                status = "Door Open" if self.sensor_states[i] else "Door Closed"
+            # Determine status based on hardware type
+            if hardware.hardware_type == "motion":
+                status = "Motion Detected" if self.hardware_states[i] else "No Motion"
+            elif hardware.hardware_type == "door":
+                status = "Door Open" if self.hardware_states[i] else "Door Closed"
             else:
-                status = "Active" if self.sensor_states[i] else "Inactive"
+                status = "Active" if self.hardware_states[i] else "Inactive"
 
             data.append(
                 {
-                    "name": sensor.name,
-                    "type": sensor.sensor_type,
-                    "value": 1 if self.sensor_states[i] else 0,
-                    "gpio_pin": sensor.pin,
+                    "name": hardware.name,
+                    "type": hardware.hardware_type,
+                    "value": 1 if self.hardware_states[i] else 0,
+                    "gpio_pin": hardware.pin,
                     "status": status,
-                    "last_activity": (
-                        last_activity.isoformat() if last_activity else None
-                    ),
+                    "last_activity": (last_activity.isoformat() if last_activity else None),
                 }
             )
 
         return data
 
-    def get_frequency_data(
-        self, hours: int = 24, interval_minutes: int = 30
-    ) -> Dict[str, Any]:
+    def get_frequency_data(self, hours: int = 24, interval_minutes: int = 30) -> Dict[str, Any]:
         """Get frequency-based activity data for graphing using system local time"""
         try:
             if not os.path.exists(self.log_file):
                 return {
-                    "sensors": {},
+                    "hardwares": {},
                     "timestamps": [],
                     "interval_minutes": interval_minutes,
                 }
@@ -297,8 +288,8 @@ class MotionSensorWebApp:
                                 activity_data.append(
                                     {
                                         "timestamp": timestamp,
-                                        "sensor_name": row["sensor_name"],
-                                        "sensor_type": row["sensor_type"],
+                                        "hardware_name": row["hardware_name"],
+                                        "hardware_type": row["hardware_type"],
                                     }
                                 )
                         except (ValueError, KeyError) as e:
@@ -321,29 +312,29 @@ class MotionSensorWebApp:
                 )
                 current_time = interval_end
 
-            # Count activity frequency for each sensor in each interval
-            sensor_names = [sensor.name for sensor in self.sensors]
-            frequency_data = {sensor: [] for sensor in sensor_names}
+            # Count activity frequency for each hardware in each interval
+            hardware_names = [hardware.name for hardware in self.hardwares]
+            frequency_data = {hardware: [] for hardware in hardware_names}
             timestamps = []
 
             for interval in time_intervals:
                 timestamps.append(interval["label"])
 
-                # Count activations for each sensor in this interval
-                for sensor_name in sensor_names:
+                # Count activations for each hardware in this interval
+                for hardware_name in hardware_names:
                     count = 0
                     for event in activity_data:
                         event_time = event["timestamp"]
                         if (
                             interval["start"] <= event_time < interval["end"]
-                            and event["sensor_name"] == sensor_name
+                            and event["hardware_name"] == hardware_name
                         ):
                             count += 1
 
-                    frequency_data[sensor_name].append(count)
+                    frequency_data[hardware_name].append(count)
 
             return {
-                "sensors": frequency_data,
+                "hardwares": frequency_data,
                 "timestamps": timestamps,
                 "interval_minutes": interval_minutes,
                 "total_intervals": len(timestamps),
@@ -353,7 +344,7 @@ class MotionSensorWebApp:
         except Exception as e:
             logger.error(f"Error getting frequency data: {e}")
             return {
-                "sensors": {},
+                "hardwares": {},
                 "timestamps": [],
                 "interval_minutes": interval_minutes,
             }
@@ -386,8 +377,8 @@ class MotionSensorWebApp:
                                 activity_data.append(
                                     {
                                         "timestamp": timestamp.isoformat(),
-                                        "sensor_name": row["sensor_name"],
-                                        "sensor_type": row["sensor_type"],
+                                        "hardware_name": row["hardware_name"],
+                                        "hardware_type": row["hardware_type"],
                                         "gpio_pin": int(row["gpio_pin"]),
                                         "state": int(row["state"]),
                                         "event": row["event"],
@@ -418,14 +409,14 @@ class MotionSensorWebApp:
             logger.error(f"Error getting activity data: {e}")
             return []
 
-    def monitor_sensors(self):
-        """Background thread to continuously monitor sensors"""
-        logger.info("Starting sensor monitoring thread...")
+    def monitor_hardwares(self):
+        """Background thread to continuously monitor hardwares"""
+        logger.info("Starting hardware monitoring thread...")
 
         while self.monitoring:
             try:
-                self.read_sensors()
-                time.sleep(0.1)  # Check sensors every 100ms
+                self.read_hardwares()
+                time.sleep(0.1)  # Check hardwares every 100ms
             except Exception as e:
                 logger.error(f"Error in monitoring thread: {e}")
                 time.sleep(1)
@@ -441,8 +432,8 @@ class MotionSensorWebApp:
 
 
 # Create global instance
-sensor_monitor = MotionSensorWebApp(socketio)
-processor = SensorSequenceProcessor("sensor_activity.csv")
+hardware_monitor = MotionSensorWebApp(socketio)
+processor = hardwaresequenceProcessor("hardware_activity.csv")
 
 
 @app.route("/")
@@ -451,12 +442,12 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/api/sensors")
-def api_sensors():
-    """API endpoint to get current sensor states"""
+@app.route("/api/hardwares")
+def api_hardwares():
+    """API endpoint to get current hardware states"""
     return jsonify(
         {
-            "sensors": sensor_monitor.get_sensor_data(),
+            "hardwares": hardware_monitor.get_hardware_data(),
             "timestamp": datetime.now().isoformat(),
         }
     )
@@ -465,7 +456,7 @@ def api_sensors():
 @app.route("/api/activity/<int:hours>")
 def api_activity(hours):
     """API endpoint to get activity data for activity log"""
-    activity_data = sensor_monitor.get_activity_data(hours)
+    activity_data = hardware_monitor.get_activity_data(hours)
     return jsonify(
         {
             "activity": activity_data,
@@ -478,7 +469,7 @@ def api_activity(hours):
 @app.route("/api/frequency/<int:hours>/<int:interval>")
 def api_frequency(hours, interval):
     """API endpoint to get frequency data for graphs"""
-    frequency_data = sensor_monitor.get_frequency_data(hours, interval)
+    frequency_data = hardware_monitor.get_frequency_data(hours, interval)
     return jsonify(
         {
             "frequency": frequency_data,
@@ -492,11 +483,11 @@ def api_frequency(hours, interval):
 @app.route("/download/activity")
 def download_activity():
     """Download complete activity log as CSV"""
-    if os.path.exists(sensor_monitor.log_file):
+    if os.path.exists(hardware_monitor.log_file):
         return send_file(
-            sensor_monitor.log_file,
+            hardware_monitor.log_file,
             as_attachment=True,
-            download_name=f'sensor_activity_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv',
+            download_name=f"hardware_activity_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         )
     else:
         return jsonify({"error": "Activity log file not found"}), 404
@@ -528,7 +519,7 @@ def process_sequences():
             {
                 "success": True,
                 "result": result,
-                "message": f'{"Incremental" if incremental else "Full"} processing completed',
+                "message": f"{'Incremental' if incremental else 'Full'} processing completed",
                 "timestamp": datetime.now().isoformat(),
             }
         )
@@ -551,9 +542,7 @@ def get_sequences_list():
 
         result = processor.get_sequence_list(page=page, per_page=per_page)
         print(result)
-        return jsonify(
-            {"success": True, **result, "timestamp": datetime.now().isoformat()}
-        )
+        return jsonify({"success": True, **result, "timestamp": datetime.now().isoformat()})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -580,9 +569,7 @@ def get_sequence_detail(sequence_id):
             )
         else:
             return (
-                jsonify(
-                    {"success": False, "error": f"Sequence {sequence_id} not found"}
-                ),
+                jsonify({"success": False, "error": f"Sequence {sequence_id} not found"}),
                 404,
             )
     except Exception as e:
@@ -680,9 +667,9 @@ def handle_connect():
     """Handle client connection"""
     logger.info("Client connected")
     emit(
-        "sensor_update",
+        "hardware_update",
         {
-            "all_sensors": sensor_monitor.get_sensor_data(),
+            "all_hardwares": hardware_monitor.get_hardware_data(),
             "timestamp": datetime.now().isoformat(),
         },
     )
@@ -698,7 +685,7 @@ def handle_disconnect():
 def handle_activity_request(data):
     """Handle request for activity data"""
     hours = data.get("hours", 24)
-    activity_data = sensor_monitor.get_activity_data(hours)
+    activity_data = hardware_monitor.get_activity_data(hours)
     emit(
         "activity_data",
         {
@@ -714,7 +701,7 @@ def handle_frequency_request(data):
     """Handle request for frequency data"""
     hours = data.get("hours", 24)
     interval = data.get("interval", 30)
-    frequency_data = sensor_monitor.get_frequency_data(hours, interval)
+    frequency_data = hardware_monitor.get_frequency_data(hours, interval)
     emit(
         "frequency_data",
         {
@@ -841,13 +828,13 @@ HTML_TEMPLATE = """
         .tab-content.active {
             display: block;
         }
-        .sensors-grid {
+        .hardwares-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
-        .sensor-card {
+        .hardware-card {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 15px;
             padding: 25px;
@@ -857,49 +844,49 @@ HTML_TEMPLATE = """
             position: relative;
             overflow: hidden;
         }
-        .sensor-card:hover {
+        .hardware-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
-        .sensor-card.active {
+        .hardware-card.active {
             background: rgba(255, 87, 51, 0.2);
             border-color: #ff5733;
-            animation: sensor-alert 1s ease-in-out infinite alternate;
+            animation: hardware-alert 1s ease-in-out infinite alternate;
         }
-        .sensor-card.door.active {
+        .hardware-card.door.active {
             background: rgba(255, 193, 7, 0.2);
             border-color: #ffc107;
         }
-        @keyframes sensor-alert {
+        @keyframes hardware-alert {
             0% { box-shadow: 0 0 20px rgba(255, 87, 51, 0.5); }
             100% { box-shadow: 0 0 40px rgba(255, 87, 51, 0.8); }
         }
-        .sensor-name {
+        .hardware-name {
             font-size: 1.3em;
             font-weight: bold;
             margin-bottom: 10px;
             display: flex;
             align-items: center;
         }
-        .sensor-icon {
+        .hardware-icon {
             font-size: 1.5em;
             margin-right: 10px;
         }
-        .sensor-status {
+        .hardware-status {
             font-size: 1.1em;
             font-weight: 600;
             margin-bottom: 8px;
         }
-        .sensor-status.active {
+        .hardware-status.active {
             color: #ff5733;
         }
-        .sensor-status.inactive {
+        .hardware-status.inactive {
             color: #4CAF50;
         }
-        .sensor-status.door-open {
+        .hardware-status.door-open {
             color: #ffc107;
         }
-        .sensor-details {
+        .hardware-details {
             font-size: 0.9em;
             opacity: 0.8;
             line-height: 1.4;
@@ -1226,7 +1213,7 @@ HTML_TEMPLATE = """
             animation: spin 1s linear infinite;
         }
         @media (max-width: 768px) {
-            .sensors-grid {
+            .hardwares-grid {
                 grid-template-columns: 1fr;
             }
             .chart-controls {
@@ -1265,7 +1252,7 @@ HTML_TEMPLATE = """
         </div>
 
         <div id="live-tab" class="tab-content active">
-            <div class="sensors-grid" id="sensors-grid">
+            <div class="hardwares-grid" id="hardwares-grid">
                 <!-- Sensor cards will be populated by JavaScript -->
             </div>
         </div>
@@ -1307,7 +1294,7 @@ HTML_TEMPLATE = """
             <div class="activity-log">
                 <h3>Recent Activity</h3>
                 <div id="activity-list">
-                    <p style="opacity: 0.6; text-align: center;">Waiting for sensor activity...</p>
+                    <p style="opacity: 0.6; text-align: center;">Waiting for hardware activity...</p>
                 </div>
             </div>
         </div>
@@ -1389,7 +1376,7 @@ HTML_TEMPLATE = """
         const maxLogEntries = 100;
 
         // Sensor type icons
-        const sensorIcons = {
+        const hardwareIcons = {
             'motion': '👁️',
             'door': '🚪',
             'active': '🟢',
@@ -1398,7 +1385,7 @@ HTML_TEMPLATE = """
         };
 
         // Sensor colors for frequency chart
-        const sensorColors = {
+        const hardwareColors = {
             'Living Room': {
                 border: 'rgb(255, 99, 132)',
                 background: 'rgba(255, 99, 132, 0.1)'
@@ -1436,12 +1423,12 @@ HTML_TEMPLATE = """
             document.getElementById('status-indicator').className = 'status-indicator disconnected';
         });
 
-        // Handle sensor updates
-        socket.on('sensor_update', function(data) {
-            if (data.all_sensors) {
-                updateSensorGrid(data.all_sensors);
+        // Handle hardware updates
+        socket.on('hardware_update', function(data) {
+            if (data.all_hardwares) {
+                updateSensorGrid(data.all_hardwares);
             }
-            if (data.sensor_name) {
+            if (data.hardware_name) {
                 addToActivityLog(data);
                 
                 // Update frequency chart if currently viewing graphs
@@ -1468,8 +1455,8 @@ HTML_TEMPLATE = """
                         });
                         
                         const logEntry = {
-                            sensor: entry.sensor_name,
-                            type: entry.sensor_type,
+                            hardware: entry.hardware_name,
+                            type: entry.hardware_type,
                             event: entry.event,
                             timestamp: timestamp,
                             isActive: true
@@ -1477,7 +1464,7 @@ HTML_TEMPLATE = """
                         
                         // Avoid duplicates
                         if (!activityLog.some(existing => 
-                            existing.sensor === logEntry.sensor && 
+                            existing.hardware === logEntry.hardware && 
                             existing.timestamp === logEntry.timestamp &&
                             existing.event === logEntry.event)) {
                             activityLog.unshift(logEntry);
@@ -1498,46 +1485,46 @@ HTML_TEMPLATE = """
             updateFrequencyChart(data.frequency);
         });
 
-        function updateSensorGrid(sensors) {
-            const grid = document.getElementById('sensors-grid');
+        function updateSensorGrid(hardwares) {
+            const grid = document.getElementById('hardwares-grid');
             grid.innerHTML = '';
             
-            sensors.forEach((sensor, index) => {
+            hardwares.forEach((hardware, index) => {
                 const card = document.createElement('div');
-                const isActive = sensor.value === 1;
-                const sensorClass = sensor.type === 'door' ? 'door' : 'motion';
+                const isActive = hardware.value === 1;
+                const hardwareClass = hardware.type === 'door' ? 'door' : 'motion';
                 
-                card.className = `sensor-card ${sensorClass} ${isActive ? 'active' : ''}`;
+                card.className = `hardware-card ${hardwareClass} ${isActive ? 'active' : ''}`;
                 
-                const lastActivity = sensor.last_activity
-                    ? new Date(sensor.last_activity).toLocaleString('en-AU', {
+                const lastActivity = hardware.last_activity
+                    ? new Date(hardware.last_activity).toLocaleString('en-AU', {
                         hour12: true
                     })
                     : 'No activity yet';
                 
-                let icon = sensorIcons[sensor.type];
+                let icon = hardwareIcons[hardware.type];
                 if (isActive) {
-                    icon = sensor.type === 'door' ? sensorIcons['door_active'] : sensorIcons['motion_active'];
+                    icon = hardware.type === 'door' ? hardwareIcons['door_active'] : hardwareIcons['motion_active'];
                 }
                 
                 let statusClass = 'inactive';
-                if (sensor.type === 'door' && isActive) {
+                if (hardware.type === 'door' && isActive) {
                     statusClass = 'door-open';
                 } else if (isActive) {
                     statusClass = 'active';
                 }
                 
                 card.innerHTML = `
-                    <div class="sensor-name">
-                        <span class="sensor-icon">${icon}</span>
-                        ${sensor.name}
+                    <div class="hardware-name">
+                        <span class="hardware-icon">${icon}</span>
+                        ${hardware.name}
                     </div>
-                    <div class="sensor-status ${statusClass}">
-                        ${sensor.status}
+                    <div class="hardware-status ${statusClass}">
+                        ${hardware.status}
                     </div>
-                    <div class="sensor-details">
-                        <div><strong>Type:</strong> ${sensor.type.charAt(0).toUpperCase() + sensor.type.slice(1)}</div>
-                        <div><strong>GPIO Pin:</strong> ${sensor.gpio_pin}</div>
+                    <div class="hardware-details">
+                        <div><strong>Type:</strong> ${hardware.type.charAt(0).toUpperCase() + hardware.type.slice(1)}</div>
+                        <div><strong>GPIO Pin:</strong> ${hardware.gpio_pin}</div>
                         <div><strong>Last Activity:</strong> ${lastActivity}</div>
                     </div>
                 `;
@@ -1552,8 +1539,8 @@ HTML_TEMPLATE = """
             });
             
             const logEntry = {
-                sensor: data.sensor_name,
-                type: data.sensor_type,
+                hardware: data.hardware_name,
+                type: data.hardware_type,
                 event: data.event,
                 timestamp: timestamp,
                 isActive: data.value === 1
@@ -1574,13 +1561,13 @@ HTML_TEMPLATE = """
             const activityList = document.getElementById('activity-list');
             
             if (activityLog.length === 0) {
-                activityList.innerHTML = '<p style="opacity: 0.6; text-align: center;">Waiting for sensor activity...</p>';
+                activityList.innerHTML = '<p style="opacity: 0.6; text-align: center;">Waiting for hardware activity...</p>';
                 return;
             }
             
             activityList.innerHTML = activityLog.map(entry => `
                 <div class="log-entry ${entry.type}">
-                    <strong>${entry.sensor}</strong>: ${entry.event}
+                    <strong>${entry.hardware}</strong>: ${entry.event}
                     <span class="timestamp">${entry.timestamp}</span>
                 </div>
             `).join('');
@@ -1645,8 +1632,8 @@ HTML_TEMPLATE = """
                             callbacks: {
                                 label: function(context) {
                                     const activations = context.parsed.y;
-                                    const sensor = context.dataset.label;
-                                    return `${sensor}: ${activations} activation${activations !== 1 ? 's' : ''}`;
+                                    const hardware = context.dataset.label;
+                                    return `${hardware}: ${activations} activation${activations !== 1 ? 's' : ''}`;
                                 }
                             }
                         }
@@ -1722,18 +1709,18 @@ HTML_TEMPLATE = """
         function updateFrequencyChart(frequencyData) {
             if (!frequencyChart || !frequencyData) return;
             
-            const { sensors, timestamps, interval_minutes, total_intervals } = frequencyData;
+            const { hardwares, timestamps, interval_minutes, total_intervals } = frequencyData;
             
-            // Create datasets for each sensor
-            const datasets = Object.keys(sensors).map(sensorName => {
-                const colorConfig = sensorColors[sensorName] || {
+            // Create datasets for each hardware
+            const datasets = Object.keys(hardwares).map(hardwareName => {
+                const colorConfig = hardwareColors[hardwareName] || {
                     border: 'rgb(255, 255, 255)',
                     background: 'rgba(255, 255, 255, 0.1)'
                 };
                 
                 return {
-                    label: sensorName,
-                    data: sensors[sensorName],
+                    label: hardwareName,
+                    data: hardwares[hardwareName],
                     borderColor: colorConfig.border,
                     backgroundColor: colorConfig.background,
                     tension: 0.4,
@@ -1752,11 +1739,11 @@ HTML_TEMPLATE = """
             frequencyChart.update('none'); // Skip animation for real-time updates
             
             // Update info card
-            const totalActivations = Object.values(sensors).reduce((total, sensorData) => 
-                total + sensorData.reduce((sum, count) => sum + count, 0), 0);
+            const totalActivations = Object.values(hardwares).reduce((total, hardwareData) => 
+                total + hardwareData.reduce((sum, count) => sum + count, 0), 0);
             
-            const mostActiveTime = findMostActiveTime(sensors, timestamps);
-            const mostActiveSensor = findMostActiveSensor(sensors);
+            const mostActiveTime = findMostActiveTime(hardwares, timestamps);
+            const mostActiveSensor = findMostActiveSensor(hardwares);
             
             document.getElementById('chartInfo').innerHTML = `
                 <strong>Analysis Summary:</strong><br>
@@ -1768,12 +1755,12 @@ HTML_TEMPLATE = """
             `;
         }
 
-        function findMostActiveTime(sensors, timestamps) {
+        function findMostActiveTime(hardwares, timestamps) {
             if (!timestamps.length) return 'No data';
             
             const timeActivitySums = timestamps.map((time, index) => {
-                const totalActivity = Object.values(sensors).reduce((sum, sensorData) => 
-                    sum + (sensorData[index] || 0), 0);
+                const totalActivity = Object.values(hardwares).reduce((sum, hardwareData) => 
+                    sum + (hardwareData[index] || 0), 0);
                 return { time, activity: totalActivity };
             });
             
@@ -1785,15 +1772,15 @@ HTML_TEMPLATE = """
                 'No activity recorded';
         }
 
-        function findMostActiveSensor(sensors) {
-            if (!Object.keys(sensors).length) return 'No data';
+        function findMostActiveSensor(hardwares) {
+            if (!Object.keys(hardwares).length) return 'No data';
             
-            const sensorTotals = Object.entries(sensors).map(([name, data]) => ({
+            const hardwareTotals = Object.entries(hardwares).map(([name, data]) => ({
                 name,
                 total: data.reduce((sum, count) => sum + count, 0)
             }));
             
-            const mostActive = sensorTotals.reduce((max, current) => 
+            const mostActive = hardwareTotals.reduce((max, current) => 
                 current.total > max.total ? current : max);
             
             return mostActive.total > 0 ? 
@@ -2028,7 +2015,7 @@ HTML_TEMPLATE = """
                             });
                             return `
                                 <div class="event-item">
-                                    <strong>${eventTime}</strong> - ${event.sensor_name}: ${event.event}
+                                    <strong>${eventTime}</strong> - ${event.hardware_name}: ${event.event}
                                 </div>
                             `;
                         }).join('')}
@@ -2081,17 +2068,16 @@ HTML_TEMPLATE = """
         }
 
         // Initial load
-        fetch('/api/sensors')
+        fetch('/api/hardwares')
             .then(response => response.json())
-            .then(data => updateSensorGrid(data.sensors))
-            .catch(error => console.error('Error loading sensors:', error));
+            .then(data => updateSensorGrid(data.hardwares))
+            .catch(error => console.error('Error loading hardwares:', error));
     </script>
 </body>
 </html>
 """
 
 # Create templates directory and save template
-import os
 
 os.makedirs("templates", exist_ok=True)
 with open("templates/index.html", "w") as f:
@@ -2099,13 +2085,9 @@ with open("templates/index.html", "w") as f:
 
 if __name__ == "__main__":
     try:
-        logger.info(
-            "Starting Enhanced Motion Sensor Web App with Frequency Analysis..."
-        )
+        logger.info("Starting Enhanced Motion Sensor Web App with Frequency Analysis...")
         logger.info("New Features:")
-        logger.info(
-            "- Frequency-based activity analysis with configurable time intervals"
-        )
+        logger.info("- Frequency-based activity analysis with configurable time intervals")
         logger.info("- Perth timezone support with 12-hour time format")
         logger.info("- Enhanced graphing with activity summaries")
         logger.info("- Real-time chart updates")
@@ -2117,13 +2099,11 @@ if __name__ == "__main__":
             logger.warning("Frequency analysis will use fallback mode")
 
         # Run the Flask-SocketIO app
-        socketio.run(
-            app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True
-        )
+        socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
 
     except KeyboardInterrupt:
         logger.info("Shutting down web app...")
     except Exception as e:
         logger.error(f"Error running web app: {e}")
     finally:
-        sensor_monitor.cleanup()
+        hardware_monitor.cleanup()

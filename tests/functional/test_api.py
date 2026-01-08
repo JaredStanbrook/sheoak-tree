@@ -12,11 +12,11 @@ def test_health_check(client):
     assert "services" in data
 
 
-def test_get_sensors_empty(client):
-    """Test fetching sensors when DB is empty."""
-    response = client.get("/api/sensors")
+def test_get_hardwares_empty(client):
+    """Test fetching hardwares when DB is empty."""
+    response = client.get("/api/hardwares")
     assert response.status_code == 200
     data = json.loads(response.data)
     assert data["success"] is True
     # The motion app might seed defaults, or return empty
-    assert isinstance(data["sensors"], list)
+    assert isinstance(data["hardwares"], list)

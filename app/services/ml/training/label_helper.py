@@ -5,7 +5,7 @@ from datetime import datetime
 
 class SequenceLabelingHelper:
     """
-    Helper tool to efficiently label sensor sequences
+    Helper tool to efficiently label hardware sequences
     """
 
     def __init__(self, json_path):
@@ -73,8 +73,8 @@ class SequenceLabelingHelper:
         door_events = sum(1 for e in sequence["raw_events"] if "Door" in e.get("event", ""))
         motion_events = sum(1 for e in sequence["raw_events"] if "Motion" in e.get("event", ""))
 
-        first_event = sequence["raw_events"][0]["sensor_name"]
-        last_event = sequence["raw_events"][-1]["sensor_name"]
+        first_event = sequence["raw_events"][0]["hardware_name"]
+        last_event = sequence["raw_events"][-1]["hardware_name"]
 
         suggestions = []
         confidence = "LOW"
@@ -214,7 +214,7 @@ class SequenceLabelingHelper:
             # Show first few events
             print("\nFirst few events:")
             for event in seq["raw_events"][:5]:
-                print(f"  {event['timestamp'][-12:]} - {event['sensor_name']}: {event['event']}")
+                print(f"  {event['timestamp'][-12:]} - {event['hardware_name']}: {event['event']}")
             if len(seq["raw_events"]) > 5:
                 print(f"  ... and {len(seq['raw_events']) - 5} more events")
 

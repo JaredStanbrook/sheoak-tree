@@ -14,9 +14,9 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Motion sensor settings
-    MOTION_SENSOR_DEBOUNCE_MS = int(os.environ.get("MOTION_SENSOR_DEBOUNCE_MS", 300))
-    SENSOR_LOG_FILE = os.environ.get("SENSOR_LOG_FILE", "sensor_activity.csv")
+    # Motion hardware settings
+    MOTION_HARDWARE_DEBOUNCE_MS = int(os.environ.get("MOTION_HARDWARE_DEBOUNCE_MS", 300))
+    HARDWARE_LOG_FILE = os.environ.get("HARDWARE_LOG_FILE", "hardware_activity.csv")
 
     # SocketIO settings
     SOCKETIO_PATH = "/sheoak/socket.io"

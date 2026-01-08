@@ -13,9 +13,9 @@ from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 
-class SensorSequenceTrainer:
+class hardwaresequenceTrainer:
     """
-    Train ML models to classify sensor event sequences into:
+    Train ML models to classify hardware event sequences into:
     Ignore, Log, Notify, or Alarm categories
     """
 
@@ -70,19 +70,19 @@ class SensorSequenceTrainer:
         # Event-based features
         if sequence["raw_events"]:
             # Sensor activity counts
-            sensor_counts = {}
-            sensor_types = {}
+            hardware_counts = {}
+            hardware_types = {}
             motion_detected = 0
             motion_cleared = 0
             door_opened = 0
             door_closed = 0
 
             for event in sequence["raw_events"]:
-                sensor = event["sensor_name"]
-                sensor_type = event["sensor_type"]
+                hardware = event["hardware_name"]
+                hardware_type = event["hardware_type"]
 
-                sensor_counts[sensor] = sensor_counts.get(sensor, 0) + 1
-                sensor_types[sensor_type] = sensor_types.get(sensor_type, 0) + 1
+                hardware_counts[hardware] = hardware_counts.get(hardware, 0) + 1
+                hardware_types[hardware_type] = hardware_types.get(hardware_type, 0) + 1
 
                 if event["event"] == "Motion Detected":
                     motion_detected += 1
@@ -98,12 +98,14 @@ class SensorSequenceTrainer:
             features["door_opened_count"] = door_opened
             features["door_closed_count"] = door_closed
 
-            # Unique sensor counts
-            features["unique_sensors"] = len(sensor_counts)
-            features["unique_sensor_types"] = len(sensor_types)
+            # Unique hardware counts
+            features["unique_hardwares"] = len(hardware_counts)
+            features["unique_hardware_types"] = len(hardware_types)
 
-            # Most active sensor
-            features["max_sensor_activations"] = max(sensor_counts.values()) if sensor_counts else 0
+            # Most active hardware
+            features["max_hardware_activations"] = (
+                max(hardware_counts.values()) if hardware_counts else 0
+            )
 
             # Event rate (events per minute)
             features["event_rate"] = len(sequence["raw_events"]) / max(
@@ -136,8 +138,10 @@ class SensorSequenceTrainer:
             features["state_transitions"] = state_changes
 
             # Sensor diversity (entropy-like measure)
-            sensor_probs = np.array(list(sensor_counts.values())) / len(sequence["raw_events"])
-            features["sensor_diversity"] = -np.sum(sensor_probs * np.log2(sensor_probs + 1e-10))
+            hardware_probs = np.array(list(hardware_counts.values())) / len(sequence["raw_events"])
+            features["hardware_diversity"] = -np.sum(
+                hardware_probs * np.log2(hardware_probs + 1e-10)
+            )
 
         else:
             # Default values for empty sequences
@@ -145,16 +149,16 @@ class SensorSequenceTrainer:
             features["motion_cleared_count"] = 0
             features["door_opened_count"] = 0
             features["door_closed_count"] = 0
-            features["unique_sensors"] = 0
-            features["unique_sensor_types"] = 0
-            features["max_sensor_activations"] = 0
+            features["unique_hardwares"] = 0
+            features["unique_hardware_types"] = 0
+            features["max_hardware_activations"] = 0
             features["event_rate"] = 0
             features["avg_time_between_events"] = 0
             features["max_time_between_events"] = 0
             features["min_time_between_events"] = 0
             features["std_time_between_events"] = 0
             features["state_transitions"] = 0
-            features["sensor_diversity"] = 0
+            features["hardware_diversity"] = 0
 
         return features
 
@@ -488,7 +492,7 @@ class SensorSequenceTrainer:
 def main():
     """Main training pipeline"""
     # Initialize trainer
-    trainer = SensorSequenceTrainer("../../sequence_labels_60_300_3.json")
+    trainer = hardwaresequenceTrainer("../../sequence_labels_60_300_3.json")
 
     # Load and prepare data
     trainer.load_data()

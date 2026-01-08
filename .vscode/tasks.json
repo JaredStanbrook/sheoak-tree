@@ -8,10 +8,6 @@
             "problemMatcher": [],
             "presentation": {
                 "group": "server"
-            },
-            "env": {
-                "FLASK_ENV": "development",
-                "FLASK_DEBUG": "1"
             }
         },
         {
@@ -23,7 +19,7 @@
         {
             "label": "Train ML Models",
             "type": "shell",
-            "command": "${workspaceFolder}/venv/bin/python app/services/ml/training/train_sensor_model.py",
+            "command": "${workspaceFolder}/venv/bin/python app/services/ml/training/train_hardware_model.py",
             "problemMatcher": []
         }
     ]

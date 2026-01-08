@@ -170,7 +170,7 @@ class SequenceController {
                     (e) => `
                     <div class="event-item-small">
                         <span class="mono">${e.timestamp.split("T")[1].split(".")[0]}</span>
-                        <strong>${e.sensor_name}</strong>: ${e.event}
+                        <strong>${e.hardware_name}</strong>: ${e.event}
                     </div>`
                   )
                   .join("")}

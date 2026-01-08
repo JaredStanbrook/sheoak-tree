@@ -1,5 +1,3 @@
-"""Module providing api."""
-
 from datetime import datetime
 
 from flask import Blueprint, current_app, jsonify, request
@@ -10,17 +8,17 @@ bp = Blueprint("api", __name__)
 logger = current_app.logger if current_app else None
 
 
-@bp.route("/sensors")
-def api_sensors():
-    """api sensor endpoint."""
-    motion_app = get_services().get_motion_app()
-    if not motion_app:
-        return jsonify({"success": False, "error": "Sensor service unavailable"}), 503
+@bp.route("/hardwares")
+def api_hardwares():
+    """Get current state of all hardware hardwares/relays."""
+    hardware = get_services().get_hardware_manager()
+    if not hardware:
+        return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
 
     return jsonify(
         {
             "success": True,
-            "sensors": motion_app.get_sensor_data(),
+            "hardwares": hardware.get_hardware_data(),
             "timestamp": datetime.now().isoformat(),
         }
     )
@@ -28,14 +26,15 @@ def api_sensors():
 
 @bp.route("/activity/<int:hours>")
 def api_activity(hours):
-    motion_app = get_services().get_motion_app()
-    if not motion_app:
-        return jsonify({"success": False, "error": "Sensor service unavailable"}), 503
+    """Get raw event logs."""
+    hardware = get_services().get_hardware_manager()
+    if not hardware:
+        return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
 
     return jsonify(
         {
             "success": True,
-            "activity": motion_app.get_activity_data(hours),
+            "activity": hardware.get_activity_data(hours),
             "timestamp": datetime.now().isoformat(),
             "hours": hours,
         }
@@ -44,11 +43,12 @@ def api_activity(hours):
 
 @bp.route("/frequency/<int:hours>/<int:interval>")
 def api_frequency(hours, interval):
-    motion_app = get_services().get_motion_app()
-    if not motion_app:
-        return jsonify({"success": False, "error": "Service unavailable"}), 503
+    """Get aggregated frequency data for graphs."""
+    hardware = get_services().get_hardware_manager()
+    if not hardware:
+        return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
 
-    data = motion_app.get_frequency_data(hours, interval)
+    data = hardware.get_frequency_data(hours, interval)
 
     return jsonify(
         {
@@ -61,27 +61,31 @@ def api_frequency(hours, interval):
     )
 
 
-@bp.route("/sensors/<int:sensor_id>/toggle", methods=["POST"])
-def toggle_sensor(sensor_id):
-    motion_app = get_services().get_motion_app()
-    if not motion_app:
-        return jsonify({"success": False, "error": "Service unavailable"}), 503
+@bp.route("/hardwares/<int:hardware_id>/toggle", methods=["POST"])
+def toggle_hardware(hardware_id):
+    """Toggle a relay or output device."""
+    hardware = get_services().get_hardware_manager()
+    if not hardware:
+        return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
 
-    success, result = motion_app.toggle_sensor(sensor_id)
+    # The hardware manager handles the specifics of the toggle
+    success, result = hardware.toggle_hardware(hardware_id)
 
     if success:
         return jsonify(
             {
                 "success": True,
                 "new_state": result,  # True = On, False = Off
-                "message": "Relay toggled",
+                "message": "Device toggled successfully",
             }
         )
     else:
         return jsonify({"success": False, "error": result}), 400
 
 
-# --- Sequence Processing Routes ---
+# ================================
+# SEQUENCE PROCESSING ROUTES
+# ================================
 
 
 @bp.route("/sequences/process", methods=["POST"])
@@ -114,7 +118,6 @@ def process_sequences():
 def get_sequences_list():
     try:
         processor = get_services().get_processor()
-        # State loading is handled in ServiceManager automatically
         result = processor.get_sequence_list(
             page=request.args.get("page", 1, type=int),
             per_page=request.args.get("per_page", 20, type=int),
@@ -182,19 +185,22 @@ def get_label_statistics():
 
 @bp.route("/health")
 def health_check():
-    motion_app = get_services().get_motion_app()
+    """System Health Check."""
+    hardware = get_services().get_hardware_manager()
     status = "healthy"
     services = {}
 
-    if motion_app:
+    # Check Hardware Service
+    if hardware:
         try:
-            motion_app.get_sensor_data()
-            services["motion_sensor"] = "operational"
+            # Simple read to ensure lock isn't stuck
+            hardware.get_hardware_data()
+            services["hardware_system"] = "operational"
         except Exception as e:
-            services["motion_sensor"] = f"error: {str(e)}"
+            services["hardware_system"] = f"error: {str(e)}"
             status = "degraded"
     else:
-        services["motion_sensor"] = "not_initialized"
+        services["hardware_system"] = "not_initialized"
         status = "degraded"
 
     return jsonify(
@@ -232,16 +238,7 @@ def get_presence_devices():
 
 @bp.route("/presence/devices", methods=["POST"])
 def add_presence_device():
-    """
-    Register a new device for presence monitoring
-
-    Expected JSON body:
-    {
-        "mac_address": "AA:BB:CC:DD:EE:FF",
-        "name": "Jared's iPhone",
-        "owner": "Jared"
-    }
-    """
+    """Register a new device for presence monitoring"""
     try:
         data = request.get_json()
 
@@ -280,15 +277,7 @@ def add_presence_device():
 
 @bp.route("/presence/devices/<int:device_id>", methods=["PUT"])
 def update_presence_device(device_id):
-    """
-    Update device information
-
-    Expected JSON body:
-    {
-        "name": "New Name",
-        "owner": "New Owner"
-    }
-    """
+    """Update device information"""
     try:
         data = request.get_json()
 
@@ -346,12 +335,7 @@ def remove_presence_device(device_id):
 
 @bp.route("/presence/history", methods=["GET"])
 def get_presence_history():
-    """
-    Get presence event history
-
-    Query params:
-        hours (int): Number of hours to look back (default: 24)
-    """
+    """Get presence event history"""
     try:
         hours = request.args.get("hours", 24, type=int)
 
@@ -395,10 +379,7 @@ def get_presence_status():
 
 @bp.route("/presence/who-is-home", methods=["GET"])
 def who_is_home():
-    """
-    Quick endpoint to see who is currently home.
-    ONLY counts devices where track_presence is True.
-    """
+    """Quick endpoint to see who is currently home."""
     try:
         services = get_services()
         monitor = services.get_presence_monitor()
@@ -425,7 +406,7 @@ def who_is_home():
                 "success": True,
                 "people_home": list(people_home.keys()),
                 "devices_home": present_devices,
-                "count": len(present_devices),  # Count only meaningful devices
+                "count": len(present_devices),
             }
         )
 

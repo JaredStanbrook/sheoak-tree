@@ -4,7 +4,7 @@ def test_config(app):
     assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
 
 
-def test_sensor_model(app):
+def test_hardware_model(app):
     """Test Sensor model creation and retrieval."""
     from app.extensions import db
     from app.models import Sensor
