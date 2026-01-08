@@ -135,7 +135,11 @@
   margin: 0;
   padding: 0;
 }
-
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
 body {
   font-family: var(--font-primary);
   color: var(--color-text-main);
@@ -145,7 +149,15 @@ body {
   background: var(--bg-app);
   background-attachment: fixed;
   min-height: 100vh;
-  padding-bottom: 40px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+main {
+  flex: 1;
 }
 
 a {
@@ -211,14 +223,14 @@ footer {
 }
 
 /* Sensor Layouts */
-.card .sensor-header {
+.card .hardware-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 20px;
 }
 
-.card .sensor-icon {
+.card .hardware-icon {
   width: 48px;
   height: 48px;
   border-radius: 14px;
@@ -232,14 +244,14 @@ footer {
   transition: var(--transition);
 }
 
-.card .sensor-name {
+.card .hardware-name {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-text-main);
   line-height: 1.2;
 }
 
-.card .sensor-meta {
+.card .hardware-meta {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   margin-top: 4px;
@@ -251,35 +263,35 @@ footer {
   box-shadow: 0 10px 40px -10px var(--color-danger-bg), inset 0 0 20px rgba(239, 68, 68, 0.05);
   background: linear-gradient(to bottom right, var(--bg-surface-solid), var(--color-danger-bg));
 }
-.card.is-active .sensor-icon {
+.card.is-active .hardware-icon {
   background: var(--grad-danger);
   color: white;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
-.card.is-active .sensor-state {
+.card.is-active .hardware-state {
   background: var(--color-danger);
   color: #fff;
 }
 
 /* Sensor Grid Layout */
-.grid-sensors {
+.grid-hardwares {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 20px;
 }
-.grid-sensors .card {
+.grid-hardwares .card {
   margin-bottom: 0;
 }
 
 /* General Sensor Helpers */
-.sensor-header {
+.hardware-header {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: auto;
 }
 
-.sensor-state {
+.hardware-state {
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -293,10 +305,6 @@ footer {
 /* ========================================================================
    Component: Navigation
    ======================================================================== */
-nav.card {
-  margin-top: 20px;
-  flex-direction: row;
-}
 nav .card-header {
   margin-bottom: 0;
 }
@@ -900,7 +908,7 @@ nav .card-header {
     align-items: normal;
   }
 
-  .container {
+  body {
     padding: 0 16px; /* Reduce container padding */
   }
 
@@ -918,19 +926,19 @@ nav .card-header {
     padding: 16px; /* Reduce internal padding from 24px */
   }
 
-  /* 4. Sensors Grid */
-  .grid-sensors {
+  /* 4. hardwares Grid */
+  .grid-hardwares {
     /* Switch to smaller minimum width for 2-column layout on phones */
     grid-template-columns: 1fr;
   }
 
-  .card .sensor-header {
+  .card .hardware-header {
     flex-direction: column; /* Stack icon and status */
     align-items: flex-start;
     gap: 10px;
   }
 
-  .card .sensor-icon {
+  .card .hardware-icon {
     width: 40px;
     height: 40px;
     font-size: 1.2rem;
@@ -938,7 +946,7 @@ nav .card-header {
     margin-bottom: 8px;
   }
 
-  .card .sensor-name {
+  .card .hardware-name {
     font-size: 1rem;
   }
 

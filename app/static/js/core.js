@@ -82,9 +82,9 @@ export const Utils = {
 export const connectStream = () => {
   const evtSource = new EventSource("/stream");
 
-  evtSource.addEventListener("sensor_event", (e) => {
+  evtSource.addEventListener("hardware_event", (e) => {
     const data = JSON.parse(e.data);
-    window.dispatchEvent(new CustomEvent("sensor_update", { detail: data }));
+    window.dispatchEvent(new CustomEvent("hardware_update", { detail: data }));
   });
 
   evtSource.addEventListener("presence_update", (e) => {

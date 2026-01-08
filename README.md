@@ -1,6 +1,6 @@
 # Sheoak Tree Smart Monitor
 
-**Sheoak Tree** is a comprehensive smart home monitoring solution designed for shared living spaces. It combines real-time sensor data (motion/door), network presence detection, and machine learning to analyze household activity patterns. Built to run on a Raspberry Pi, it features a modern glassmorphism UI and a robust backend.
+**Sheoak Tree** is a comprehensive smart home monitoring solution designed for shared living spaces. It combines real-time hardware data (motion/door), network presence detection, and machine learning to analyze household activity patterns. Built to run on a Raspberry Pi, it features a modern glassmorphism UI and a robust backend.
 
 ## About
 
@@ -10,7 +10,7 @@ Unlike generic smart home hubs, this system is tailored to:
 
 * **Real-time Visualization:** See which rooms are active instantly via WebSockets.
 * **Presence Detection:** unobtrusively checks who is home via Network/SNMP scanning (no GPS tracking required).
-* **Smart Analysis:** Uses Random Forest and XGBoost models to classify sensor sequences (e.g., distinguishing a "Kitchen Raid" from a "False Alarm").
+* **Smart Analysis:** Uses Random Forest and XGBoost models to classify hardware sequences (e.g., distinguishing a "Kitchen Raid" from a "False Alarm").
 * **House Intelligence:** Includes a digitized "Survival Guide" for parking, bin days, and house etiquette.
 
 ## Key Features
@@ -18,18 +18,18 @@ Unlike generic smart home hubs, this system is tailored to:
 * **Live Dashboard:** Real-time status of Motion PIRs, Door Contacts, and Relays using `Flask-SocketIO`.
 * **Presence Monitoring:** Scans the local network (ARP/SNMP) to detect housemates' devices and determine who is home.
 * **AI/ML Analytics:**
-* Captures temporal sequences of sensor events.
+* Captures temporal sequences of hardware events.
 * Interactive labeling tool to categorize behavior.
 * Trainable ML models (Random Forest/XGBoost) to predict event significance.
 
 
 * **Frequency Analysis:** Visual graphs showing activity hotspots throughout the day (Perth Timezone).
 * **Glassmorphism UI:** A refined, mobile-responsive interface.
-* **Hardware Control:** Direct GPIO interaction for sensors and relays (with Mock mode for local dev).
+* **Hardware Control:** Direct GPIO interaction for hardwares and relays (with Mock mode for local dev).
 
 ## Tech Stack
 
-* **Hardware:** Raspberry Pi (GPIO), PIR Sensors, Magnetic Door Contacts, 5V Relays.
+* **Hardware:** Raspberry Pi (GPIO), PIR hardwares, Magnetic Door Contacts, 5V Relays.
 * **Backend:** Python 3, Flask, SQLAlchemy (SQLite), Flask-SocketIO.
 * **Frontend:** HTML5, CSS3 (Custom Glass Theme), JavaScript (ES6 Modules), Chart.js.
 * **Machine Learning:** Pandas, Scikit-Learn, XGBoost.
@@ -87,14 +87,14 @@ Access the dashboard at `http://localhost:5000`.
 
 ## Machine Learning Workflow
 
-Sheoak Tree uses a custom pipeline to analyze sensor behavior:
+Sheoak Tree uses a custom pipeline to analyze hardware behavior:
 
-1. **Data Collection:** Raw events are logged to `sensor_activity.csv` and SQLite.
+1. **Data Collection:** Raw events are logged to `hardware_activity.csv` and SQLite.
 2. **Sequence Generation:** The system groups events into "Sequences" based on time gaps (default 5 mins).
 3. **Labeling:** Use the web interface (`/ai`) or the CLI tool (`app/services/ml/training/label_helper.py`) to label sequences (e.g., "Ignore", "Alarm").
 4. **Training:**
 ```bash
-python app/services/ml/training/train_sensor_model.py
+python app/services/ml/training/train_hardware_model.py
 
 ```
 
@@ -120,7 +120,7 @@ This project utilizes **GitHub Actions** for continuous deployment.
 ```
 sheoak-tree/
 ├── app/
-│   ├── routes/          # Flask Blueprints (Main, API, Sensors)
+│   ├── routes/          # Flask Blueprints (Main, API, hardwares)
 │   ├── services/        # Core Logic (Motion, Presence, ML Manager)
 │   ├── static/          # CSS, JS, PDF Assets
 │   ├── templates/       # HTML Templates

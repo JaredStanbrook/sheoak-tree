@@ -21,8 +21,8 @@ class AnalysisController {
       this.elements.intervalRange.addEventListener("change", () => this.requestFrequencyData());
 
     // Listen for Real-time SSE Events (dispatched by core.js)
-    window.addEventListener("sensor_update", (e) => {
-      // e.detail contains the raw sensor event data
+    window.addEventListener("hardware_update", (e) => {
+      // e.detail contains the raw hardware event data
       this.addLogEntry(e.detail);
     });
 
@@ -96,14 +96,14 @@ class AnalysisController {
 
   updateChart(data) {
     if (!this.chart) return;
-    const { sensors, timestamps, interval_minutes } = data;
+    const { hardwares, timestamps, interval_minutes } = data;
     // Updated Light Palette: Emerald, Blue, Amber, Violet
     const palette = ["#059669", "#2563eb", "#d97706", "#7c3aed"];
     let colorIdx = 0;
     const datasets = [];
 
-    Object.keys(sensors).forEach((label) => {
-      const rawData = sensors[label];
+    Object.keys(hardwares).forEach((label) => {
+      const rawData = hardwares[label];
       const isDoor =
         Array.isArray(rawData) && rawData.length > 0 && rawData[0].hasOwnProperty("state");
 
@@ -179,12 +179,12 @@ class AnalysisController {
     if (!this.elements.logList) return;
     const type = (data.type || "motion").toLowerCase();
     const event = data.event || data.type;
-    const sensor = data.sensor_name || data.name;
+    const hardware = data.hardware_name || data.name;
 
     const entryHtml = `
             <div class="log-item type-${type.includes("door") ? "door" : "motion"}">
                 <div class="log-content">
-                    <strong>${sensor}</strong>
+                    <strong>${hardware}</strong>
                     <span>${event}</span>
                 </div>
                 <div class="log-time">

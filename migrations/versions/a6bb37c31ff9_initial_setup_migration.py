@@ -1,8 +1,8 @@
-"""Initial migration with new Device columns
+"""Initial setup migration
 
-Revision ID: 0c5df342a3a5
+Revision ID: a6bb37c31ff9
 Revises: 
-Create Date: 2025-12-22 16:56:47.964744
+Create Date: 2026-01-07 12:25:18.461742
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '0c5df342a3a5'
+revision = 'a6bb37c31ff9'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -33,22 +33,22 @@ def upgrade():
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('mac_address')
     )
-    op.create_table('sensor',
+    op.create_table('hardware',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=64), nullable=False),
-    sa.Column('pin', sa.Integer(), nullable=False),
-    sa.Column('type', sa.String(length=20), nullable=True),
     sa.Column('enabled', sa.Boolean(), nullable=True),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('pin')
+    sa.Column('driver_type', sa.String(length=50), nullable=False),
+    sa.Column('configuration', sa.JSON(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('event',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('sensor_id', sa.Integer(), nullable=True),
-    sa.Column('value', sa.Integer(), nullable=True),
-    sa.Column('event_type', sa.String(length=50), nullable=True),
+    sa.Column('hardware_id', sa.Integer(), nullable=True),
+    sa.Column('value', sa.Float(), nullable=True),
+    sa.Column('formatted_value', sa.String(length=50), nullable=True),
+    sa.Column('unit', sa.String(length=20), nullable=True),
     sa.Column('timestamp', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['sensor_id'], ['sensor.id'], ),
+    sa.ForeignKeyConstraint(['hardware_id'], ['hardware.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('event', schema=None) as batch_op:
@@ -72,6 +72,6 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_event_timestamp'))
 
     op.drop_table('event')
-    op.drop_table('sensor')
+    op.drop_table('hardware')
     op.drop_table('device')
     # ### end Alembic commands ###

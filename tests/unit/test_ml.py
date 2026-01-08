@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 
-from app.services.ml.training.label_advanced import SensorSequenceProcessor
+from app.services.ml.training.label_advanced import hardwaresequenceProcessor
 
 
 @pytest.fixture
 def sample_csv(tmp_path):
-    """Create a temporary CSV file with sample sensor data."""
+    """Create a temporary CSV file with sample hardware data."""
     file_path = tmp_path / "test_activity.csv"
 
     # Generate 5 minutes of data
@@ -27,7 +27,7 @@ def sample_csv(tmp_path):
     data.append([burst2_time, "Kitchen", "motion", 1, 1, "Motion Detected"])
 
     df = pd.DataFrame(
-        data, columns=["timestamp", "sensor_name", "sensor_type", "gpio_pin", "state", "event"]
+        data, columns=["timestamp", "hardware_name", "hardware_type", "gpio_pin", "state", "event"]
     )
     df.to_csv(file_path, index=False)
     return str(file_path)
@@ -35,7 +35,7 @@ def sample_csv(tmp_path):
 
 def test_sequence_identification(sample_csv):
     """Test that the processor correctly groups events into sequences."""
-    processor = SensorSequenceProcessor(csv_path=sample_csv)
+    processor = hardwaresequenceProcessor(csv_path=sample_csv)
 
     # Process with small window/gap for testing
     result = processor.process_sequences(

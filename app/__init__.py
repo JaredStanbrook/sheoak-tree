@@ -3,7 +3,6 @@ import logging
 from flask import Flask, jsonify, render_template, request
 
 from app.extensions import db, migrate, socketio
-from app.models import Event, Sensor
 from config import Config
 
 # Configure logging
@@ -24,12 +23,12 @@ def create_app(config_class=Config):
 
     # Register Blueprints
     from app.routes.api import bp as api_bp
+    from app.routes.hardwares import bp as hardwares_bp
     from app.routes.main import bp as main_bp
-    from app.routes.sensors import bp as sensors_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
-    app.register_blueprint(sensors_bp, url_prefix="/sensors")
+    app.register_blueprint(hardwares_bp, url_prefix="/hardwares")
 
     # Global Error Handlers
     register_error_handlers(app)

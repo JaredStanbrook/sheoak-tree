@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI to load trained models and predict labels for sensor sequences.
+CLI to load trained models and predict labels for hardware sequences.
 
 Usage examples:
   python predict_cli.py --model rf --model-path random_forest_model.pkl --encoder-path label_encoder.pkl --input sequences.json
@@ -22,7 +22,7 @@ import pandas as pd
 
 
 def extract_features(sequence):
-    """Replicate the feature extraction from SensorSequenceTrainer.
+    """Replicate the feature extraction from hardwaresequenceTrainer.
 
     Args:
         sequence: dict representing a single sequence
@@ -55,16 +55,16 @@ def extract_features(sequence):
 
     # Event-based
     if raw_events:
-        sensor_counts = {}
-        sensor_types = {}
+        hardware_counts = {}
+        hardware_types = {}
         motion_detected = motion_cleared = 0
         door_opened = door_closed = 0
 
         for event in raw_events:
-            sensor = event.get("sensor_name", "unknown")
-            sensor_type = event.get("sensor_type", "unknown")
-            sensor_counts[sensor] = sensor_counts.get(sensor, 0) + 1
-            sensor_types[sensor_type] = sensor_types.get(sensor_type, 0) + 1
+            hardware = event.get("hardware_name", "unknown")
+            hardware_type = event.get("hardware_type", "unknown")
+            hardware_counts[hardware] = hardware_counts.get(hardware, 0) + 1
+            hardware_types[hardware_type] = hardware_types.get(hardware_type, 0) + 1
 
             ev = event.get("event", "")
             if ev == "Motion Detected":
@@ -81,9 +81,11 @@ def extract_features(sequence):
         features["door_opened_count"] = door_opened
         features["door_closed_count"] = door_closed
 
-        features["unique_sensors"] = len(sensor_counts)
-        features["unique_sensor_types"] = len(sensor_types)
-        features["max_sensor_activations"] = max(sensor_counts.values()) if sensor_counts else 0
+        features["unique_hardwares"] = len(hardware_counts)
+        features["unique_hardware_types"] = len(hardware_types)
+        features["max_hardware_activations"] = (
+            max(hardware_counts.values()) if hardware_counts else 0
+        )
         features["event_rate"] = len(raw_events) / max(features["duration_minutes"], 0.1)
 
         timestamps = [
@@ -111,8 +113,10 @@ def extract_features(sequence):
         )
         features["state_transitions"] = state_changes
 
-        sensor_probs = np.array(list(sensor_counts.values())) / len(raw_events)
-        features["sensor_diversity"] = float(-np.sum(sensor_probs * np.log2(sensor_probs + 1e-10)))
+        hardware_probs = np.array(list(hardware_counts.values())) / len(raw_events)
+        features["hardware_diversity"] = float(
+            -np.sum(hardware_probs * np.log2(hardware_probs + 1e-10))
+        )
     else:
         # Defaults
         features.update(
@@ -121,16 +125,16 @@ def extract_features(sequence):
                 "motion_cleared_count": 0,
                 "door_opened_count": 0,
                 "door_closed_count": 0,
-                "unique_sensors": 0,
-                "unique_sensor_types": 0,
-                "max_sensor_activations": 0,
+                "unique_hardwares": 0,
+                "unique_hardware_types": 0,
+                "max_hardware_activations": 0,
                 "event_rate": 0.0,
                 "avg_time_between_events": 0.0,
                 "max_time_between_events": 0.0,
                 "min_time_between_events": 0.0,
                 "std_time_between_events": 0.0,
                 "state_transitions": 0,
-                "sensor_diversity": 0.0,
+                "hardware_diversity": 0.0,
             }
         )
 
@@ -154,7 +158,7 @@ def load_json_input(path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Predict labels for sensor sequences using saved models"
+        description="Predict labels for hardware sequences using saved models"
     )
     parser.add_argument("--model", choices=["rf", "xgb"], default="rf", help="Which model to use")
     parser.add_argument(
