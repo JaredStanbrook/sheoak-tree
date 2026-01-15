@@ -1,147 +1,19 @@
-import asyncio
 import logging
-import os
+import platform
+import re
 import socket
-from datetime import datetime
+import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- Strict Imports (Modern v3arch) ---
-try:
-    # As per your provided docs: using v3arch.asyncio
-    from pysnmp.hlapi.v3arch.asyncio import (
-        CommunityData,
-        ContextData,
-        ObjectIdentity,
-        ObjectType,
-        SnmpEngine,
-        UdpTransportTarget,
-        walk_cmd,
-    )
-    from zeroconf import ServiceBrowser, Zeroconf
-except ImportError as e:
-    raise ImportError(
-        f"Missing dependencies. Run: pip install 'pysnmp>=7.0' zeroconf netaddr. Error: {e}"
-    )
+from zeroconf import ServiceBrowser, Zeroconf
 
 logger = logging.getLogger(__name__)
 
-# --- Helper Functions ---
 
+class MDNSListener:
+    """Maintains a cache of mDNS services for hostname resolution."""
 
-def is_randomized_mac(mac):
-    """Checks the Locally Administered Bit (2nd char)"""
-    if len(mac) < 2:
-        return False
-    second_char = mac[1].upper()
-    return second_char in ["2", "6", "A", "E"]
-
-
-async def fetch_arp_table(target_ip, community):
-    """Fetch ARP table via SNMP (v3arch compliant)"""
-    arp_map = {}
-
-    try:
-        # 1. Create the SNMP Engine
-        snmp_engine = SnmpEngine()
-
-        # 2. Create Transport Target ASYNCHRONOUSLY (Critical Fix)
-        # Your docs show: await UdpTransportTarget.create(...)
-        transport = await UdpTransportTarget.create((target_ip, 161), timeout=2.0, retries=1)
-
-        # 3. Define the OID for ARP table (IP-NetToMedia-PhysAddress)
-        oid = "1.3.6.1.2.1.4.22.1.2"
-
-        # 4. Run the Walk Command
-        iterator = walk_cmd(
-            snmp_engine,
-            CommunityData(community),
-            transport,
-            ContextData(),
-            ObjectType(ObjectIdentity(oid)),
-            lexicographicMode=False,
-        )
-
-        # 5. Iterate results
-        async for errorIndication, errorStatus, errorIndex, varBinds in iterator:
-            if errorIndication or errorStatus:
-                continue
-
-            for varBind in varBinds:
-                try:
-                    # Parse IP from OID suffix
-                    # OID format: ...1.3.6.1.2.1.4.22.1.2.{interface_index}.{ip_1}.{ip_2}.{ip_3}.{ip_4}
-                    ip_parts = varBind[0].getOid().asTuple()[-4:]
-                    ip_addr = ".".join(str(x) for x in ip_parts)
-
-                    # Parse MAC bytes
-                    mac_bytes = varBind[1].asNumbers()
-                    if len(mac_bytes) == 6:
-                        mac_str = ":".join([f"{b:02X}" for b in mac_bytes])
-                        arp_map[ip_addr] = mac_str
-                except Exception:
-                    continue
-
-        # Close the dispatcher to free resources
-        snmp_engine.close_dispatcher()
-
-    except Exception as e:
-        logger.error(f"SNMP Error: {e}")
-
-    return arp_map
-
-
-async def detect_os_by_ttl(ip):
-    """Detect OS via TTL (Linux/Mac=64, Win=128)"""
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "ping",
-            "-c",
-            "1",
-            "-W",
-            "1",
-            ip,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, _ = await proc.communicate()
-        output = stdout.decode("utf-8", errors="ignore").lower()
-
-        if "ttl=" in output:
-            val = output.split("ttl=")[1].split()[0]
-            ttl = int(val)
-            if ttl <= 64:
-                return "unix-like"
-            if ttl <= 128:
-                return "windows"
-    except:
-        pass
-    return None
-
-
-async def quick_port_scan(ip):
-    """Check specific ports to ID device type"""
-    ports = {22: "ssh", 80: "http", 443: "https", 445: "smb", 548: "afp", 5000: "upnp"}
-    open_ports = []
-
-    async def check(p):
-        try:
-            _, writer = await asyncio.wait_for(asyncio.open_connection(ip, p), 0.5)
-            writer.close()
-            await writer.wait_closed()
-            return p
-        except:
-            return None
-
-    results = await asyncio.gather(*[check(p) for p in ports], return_exceptions=True)
-    for res in results:
-        if res:
-            open_ports.append(ports[res])
-    return open_ports
-
-
-# --- mDNS Listener ---
-
-
-class MDNSCache:
     def __init__(self):
         self.hostnames = {}
         self.services = {}
@@ -152,9 +24,9 @@ class MDNSCache:
             info = zc.get_service_info(type, name)
             if not info or not info.addresses:
                 return
-
             ip = socket.inet_ntoa(info.addresses[0])
-            self.hostnames[ip] = info.server.replace(".local.", "")
+            server = info.server.replace(".local.", "")
+            self.hostnames[ip] = server
 
             if ip not in self.services:
                 self.services[ip] = set()
@@ -162,91 +34,204 @@ class MDNSCache:
 
             if info.properties:
                 props = {
-                    k.decode("utf-8") if isinstance(k, bytes) else k: v.decode("utf-8")
+                    k.decode() if isinstance(k, bytes) else k: v.decode()
                     if isinstance(v, bytes)
                     else v
                     for k, v in info.properties.items()
                 }
                 self.device_info[ip] = props
-        except:
+        except Exception:
             pass
 
     def add_service(self, zc, type, name):
         self.update_service(zc, type, name)
 
-    def remove_service(self, *args):
+    def remove_service(self, zc, type, name):
+        pass  # Optional: Implement expiration logic if needed
+
+    def update_record(self, zc, now, record):
         pass
 
-    def update_record(self, *args):
-        pass
 
+class NetworkDiscovery:
+    """
+    Replaces SNMP with Active Ping Sweep + Local ARP Table lookup.
+    Thread-safe and synchronous to match the application architecture.
+    """
 
-# --- Main Worker Loop ---
+    def __init__(self, target_gateway):
+        self.subnet_prefix = ".".join(target_gateway.split(".")[:3])
+        self.is_windows = platform.system().lower() == "windows"
 
-
-async def scan_loop(target_ip, community, interval, queue, stop_event):
-    logger.info(f"Scanner Worker Started (PID: {os.getpid()})")
-
-    zc = Zeroconf()
-    mdns_cache = MDNSCache()
-    browsers = []
-
-    service_types = [
-        "_device-info._tcp.local.",
-        "_workstation._tcp.local.",
-        "_airplay._tcp.local.",
-        "_googlecast._tcp.local.",
-        "_http._tcp.local.",
-    ]
-
-    for st in service_types:
-        browsers.append(ServiceBrowser(zc, st, mdns_cache))
-
-    while not stop_event.is_set():
+    def _ping_host(self, ip):
+        """Pings a single host. Returns IP if up, None otherwise."""
         try:
-            # 1. Get Base ARP Data
-            arp_data = await fetch_arp_table(target_ip, community)
+            # Use appropriate flag for count (-n for Windows, -c for Linux/Mac)
+            param = "-n" if self.is_windows else "-c"
+            timeout_param = "-w" if self.is_windows else "-W"
+            # 1 packet, 1 second timeout (fast scan)
+            cmd = ["ping", param, "1", timeout_param, "1", ip]
 
-            # 2. Enrich Data
-            batch_results = []
+            ret = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return ip if ret.returncode == 0 else None
+        except Exception:
+            return None
 
-            async def enrich_device(ip, mac):
-                # Random checks to save resources (10% chance for deep scan)
-                do_deep_scan = (hash(mac + str(datetime.now())) % 10) == 0
+    def scan_subnet(self):
+        """
+        Active Phase: Ping all hosts in /24 subnet to populate local ARP cache.
+        Uses ThreadPool for speed.
+        """
+        active_ips = []
+        # Create list of all 254 IPs
+        ips_to_scan = [f"{self.subnet_prefix}.{i}" for i in range(1, 255)]
 
-                return {
-                    "mac": mac,
-                    "ip": ip,
-                    "is_random": is_randomized_mac(mac),
-                    "hostname": mdns_cache.hostnames.get(ip),
-                    "mdns_services": list(mdns_cache.services.get(ip, [])),
-                    "device_info": mdns_cache.device_info.get(ip, {}),
-                    "os_guess": await detect_os_by_ttl(ip) if do_deep_scan else None,
-                    "open_ports": await quick_port_scan(ip) if do_deep_scan else None,
-                }
+        # Max workers 50 ensures scan finishes in < 5 seconds
+        with ThreadPoolExecutor(max_workers=50) as executor:
+            futures = {executor.submit(self._ping_host, ip): ip for ip in ips_to_scan}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    active_ips.append(result)
+        return active_ips
 
-            tasks = [enrich_device(ip, mac) for ip, mac in arp_data.items()]
-            if tasks:
-                batch_results = await asyncio.gather(*tasks)
-                queue.put(batch_results)
+    def get_arp_table(self):
+        """
+        Passive Phase: Read system ARP table to map IP -> MAC.
+        Works on Linux (standard for Pi) and macOS/Windows via parsing.
+        """
+        arp_map = {}
+
+        try:
+            # Linux Optimization: Read /proc/net/arp directly if available
+            if not self.is_windows:
+                try:
+                    with open("/proc/net/arp", "r") as f:
+                        # Skip header
+                        next(f)
+                        for line in f:
+                            parts = line.split()
+                            if len(parts) >= 4:
+                                ip = parts[0]
+                                mac = parts[3]
+                                # Filter incomplete or loopback entries
+                                if mac != "00:00:00:00:00:00" and len(mac) == 17:
+                                    arp_map[ip] = mac.upper()
+                    return arp_map
+                except FileNotFoundError:
+                    pass  # Fallback to CLI command
+
+            # Cross-platform fallback: arp -a
+            cmd = ["arp", "-a"]
+            output = subprocess.check_output(cmd).decode()
+
+            # Regex for IP (IPv4) and MAC
+            # Matches (192.168.1.1) at ... 00:11:22:33:44:55
+            for line in output.splitlines():
+                # Extract IP
+                ip_match = re.search(r"\(?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\)?", line)
+                # Extract MAC
+                mac_match = re.search(
+                    r"([0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2})",
+                    line,
+                )
+
+                if ip_match and mac_match:
+                    ip = ip_match.group(1)
+                    mac = mac_match.group(1).replace("-", ":").upper()
+                    arp_map[ip] = mac
 
         except Exception as e:
-            logger.error(f"Scan Loop Error: {e}")
+            logger.error(f"ARP Table Read Error: {e}")
 
-        # Sleep with check
-        for _ in range(interval):
-            if stop_event.is_set():
-                break
-            await asyncio.sleep(1)
+        return arp_map
 
-    zc.close()
+
+# --- Main Worker Entry Point ---
 
 
 def scanner_process_entry(target_ip, community, interval, queue, stop_event):
-    """Multiprocessing entry point"""
+    """
+    Worker process entry point.
+    Runs active discovery loop.
+    (Note: 'community' arg kept for signature compatibility but ignored)
+    """
+    logger.info("Network Scanner Process Started (Method: Active Ping + ARP)")
+
+    # 1. Initialize mDNS (Passive Discovery)
+    zc = Zeroconf()
+    listener = MDNSListener()
+    # Browse common service types to enrich data
+    ServiceBrowser(
+        zc,
+        [
+            "_googlecast._tcp.local.",
+            "_airplay._tcp.local.",
+            "_http._tcp.local.",
+            "_device-info._tcp.local.",
+            "_workstation._tcp.local.",
+        ],
+        listener,
+    )
+
+    # 2. Initialize Scanner (Active Discovery)
+    scanner = NetworkDiscovery(target_ip)
+
     try:
-        asyncio.run(scan_loop(target_ip, community, interval, queue, stop_event))
+        while not stop_event.is_set():
+            start_time = time.time()
+
+            try:
+                # A. Active Scan (Populate ARP Cache)
+                # We don't necessarily need the returned list of IPs because
+                # we rely on the ARP table for the final MAC mapping.
+                scanner.scan_subnet()
+
+                # B. Read ARP Table (The Source of Truth)
+                arp_data = scanner.get_arp_table()
+
+                # C. Enrich Data
+                batch = []
+                for ip, mac in arp_data.items():
+                    # Check randomized MAC (Locally Administered Bit)
+                    is_random = False
+                    if len(mac) == 17:
+                        # 2nd char of 1st byte: 2, 6, A, E
+                        second_char = mac[1].upper()
+                        is_random = second_char in ["2", "6", "A", "E"]
+
+                    device = {
+                        "mac": mac,
+                        "ip": ip,
+                        "is_random": is_random,
+                        "hostname": listener.hostnames.get(ip),
+                        "mdns_services": list(listener.services.get(ip, [])),
+                        "device_info": listener.device_info.get(ip, {}),
+                    }
+                    batch.append(device)
+
+                # D. Send to Main Process
+                if batch:
+                    queue.put(batch)
+
+            except Exception as e:
+                logger.error(f"Scanner Loop Error: {e}")
+
+            # Sleep Logic
+            elapsed = time.time() - start_time
+            sleep_time = max(1, interval - elapsed)
+
+            # Check stop event periodically during long sleeps
+            if sleep_time > 5:
+                for _ in range(int(sleep_time)):
+                    if stop_event.is_set():
+                        break
+                    time.sleep(1)
+            else:
+                time.sleep(sleep_time)
+
     except KeyboardInterrupt:
         pass
-    except Exception as e:
-        logger.error(f"Critical Scanner Failure: {e}", exc_info=True)
+    finally:
+        zc.close()
+        logger.info("Scanner Process Exiting")

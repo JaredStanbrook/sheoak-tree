@@ -3,129 +3,166 @@ Universal Hardware Service Layer
 Orchestrates hardware strategies and provides data access for the API.
 """
 
+import json
 import logging
 import threading
-import time
 from datetime import datetime, timedelta
 
 from app.extensions import db
 from app.models import Event, Hardware
+from app.services.core import ThreadedService
 from app.services.event_service import bus
 from app.services.hardware_strategies import GPIO, HardwareFactory
 
 logger = logging.getLogger(__name__)
 
 
-class HardwareManager:
+class HardwareManager(ThreadedService):
     def __init__(self, app):
+        # High frequency poll (0.1s)
+        super().__init__("HardwareManager", interval=0.1)
         self.app = app
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
         # Maps hardware_id -> Strategy Instance
         self.strategies = {}
-        self.last_activity_map = {}
 
-        # Initialize Hardware
-        GPIO.setmode(GPIO.BCM)
-        self._load_hardware()
+        # Global GPIO Setup (done once)
+        try:
+            GPIO.setmode(GPIO.BCM)
+        except Exception as e:
+            logger.error(f"GPIO Global Setup Failed: {e}")
 
-        # Start Loop
-        self.running = True
-        self.thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self.thread.start()
+    def start(self):
+        """Initial startup: Load config and start thread."""
+        if self.running:
+            return
 
-    def _load_hardware(self):
-        """Loads hardware definitions from DB and instantiates strategies"""
-        with self.app.app_context():
-            if Hardware.query.count() == 0:
-                self._seed_defaults()
+        # Load initial config synchronously
+        self.reload_config()
 
-            items = Hardware.query.filter_by(enabled=True).all()
-            self.strategies = {}
+        # Start the polling loop
+        super().start()
 
-            for item in items:
-                strategy = HardwareFactory.create_strategy(item)
-                if strategy:
-                    strategy.setup()
-                    self.strategies[item.id] = strategy
-                    logger.info(f"Loaded hardware strategy: {item.name}")
+    def run(self):
+        """The main polling loop (Hot Path)."""
+        # Acquire lock to ensure we don't iterate while reloading
+        with self._lock:
+            # Create a shallow copy of values to iterate safely if lock granularity needs reduction
+            # However, for 0.1s interval, holding lock during lightweight GPIO read is safest.
+            active_strategies = list(self.strategies.values())
 
-    def _seed_defaults(self):
-        defaults = [
-            Hardware(
-                name="Living Room",
-                type="motion_sensor",
-                driver_interface="gpio_binary",
-                configuration={"pin": 6},
-            ),
-            Hardware(
-                name="Hallway",
-                type="motion_sensor",
-                driver_interface="gpio_binary",
-                configuration={"pin": 2},
-            ),
-            Hardware(
-                name="Front Door",
-                type="contact_sensor",
-                driver_interface="gpio_binary",
-                configuration={"pin": 3},
-            ),
-            Hardware(
-                name="Kitchen Relay", driver_interface="gpio_relay", configuration={"pin": 18}
-            ),
-        ]
-        db.session.add_all(defaults)
-        db.session.commit()
-
-    def _monitor_loop(self):
-        """Universal Event Loop"""
-        while self.running:
+        for strategy in active_strategies:
             try:
-                # Iterate over strategies
-                # Assuming self.strategies is Dict[int, HardwareStrategy]
-                for hw_id, strategy in list(self.strategies.items()):
-                    try:
-                        result = strategy.read()
-
-                        if result:
-                            val, unit = result
-                            # PASS THE STRATEGY OBJECT, NOT JUST ID
-                            self._handle_event(strategy, val, unit)
-
-                    except Exception as e:
-                        logger.error(f"Error reading hw {hw_id}: {e}")
-
-                time.sleep(0.1)  # Polling Interval TODO make configurable
+                # Read hardware state
+                result = strategy.read()
+                if result:
+                    val, unit = result
+                    self._handle_event(strategy, val, unit)
             except Exception as e:
-                logger.error(f"Hardware Loop Critical Error: {e}")
-                time.sleep(1)  # Backoff on critical error
+                logger.error(f"Error reading hardware {strategy.name}: {e}")
+
+    def reload_config(self):
+        """
+        Thread-safe hot reload of hardware configuration.
+        Call this explicitly after DB changes.
+        """
+        logger.info("♻️ Reloading hardware configuration...")
+
+        with self.app.app_context():
+            # 1. Fetch enabled hardware definitions
+            hw_definitions = Hardware.query.filter_by(enabled=True).all()
+
+            # 2. Pre-calculate strategies (Prepare Phase)
+            # We do this OUTSIDE the lock to minimize blocking the run loop
+            new_strategies = {}
+
+            for hw_model in hw_definitions:
+                try:
+                    # Create the strategy (this parses config, but doesn't touch GPIO yet)
+                    strategy = HardwareFactory.create_strategy(hw_model)
+                    if strategy:
+                        # Store config hash for diffing
+                        strategy._config_hash = self._compute_config_hash(hw_model)
+                        new_strategies[hw_model.id] = strategy
+                except Exception as e:
+                    logger.error(f"Failed to factory strategy for {hw_model.name}: {e}")
+
+            # 3. Swap and Setup (Critical Section)
+            with self._lock:
+                changes = {"added": 0, "updated": 0, "removed": 0, "kept": 0}
+                final_map = {}
+
+                for hw_id, new_strat in new_strategies.items():
+                    existing_strat = self.strategies.get(hw_id)
+
+                    # Check if we can preserve the existing instance
+                    if (
+                        existing_strat
+                        and existing_strat.driver_interface == new_strat.driver_interface
+                        and getattr(existing_strat, "_config_hash", None) == new_strat._config_hash
+                    ):
+                        # CONFIG UNCHANGED: Keep existing (preserves debouncing/state)
+                        final_map[hw_id] = existing_strat
+                        changes["kept"] += 1
+                    else:
+                        # NEW or CHANGED: Initialize new strategy
+                        try:
+                            # Safe to call setup() on active pins (re-configures them)
+                            new_strat.setup()
+                            final_map[hw_id] = new_strat
+
+                            if existing_strat:
+                                changes["updated"] += 1
+                            else:
+                                changes["added"] += 1
+                        except Exception as e:
+                            logger.error(f"Failed to setup hardware {new_strat.name}: {e}")
+                            # If setup fails, try to keep old one or drop? Drop to be safe.
+                            continue
+
+                # Identify removed hardware
+                for old_id in self.strategies:
+                    if old_id not in final_map:
+                        changes["removed"] += 1
+                        # Optional: strategy.teardown() if we implemented it
+
+                # Atomic Swap
+                self.strategies = final_map
+
+                logger.info(f"Hardware Reload Complete: {changes}")
+                return changes
+
+    def _compute_config_hash(self, hw_model):
+        """Helper to detect configuration changes."""
+        # Simple string representation of relevant fields
+        fingerprint = {
+            "driver": hw_model.driver_interface,
+            "pin": hw_model.configuration.get("pin"),
+            "type": hw_model.type,
+            # Add other critical config fields here
+        }
+        return json.dumps(fingerprint, sort_keys=True)
 
     def _handle_event(self, strategy, value, unit):
-        """
-        Processes a change in hardware state.
-        :param strategy: The HardwareStrategy instance
-        :param value: The new value
-        :param unit: The unit of measurement
-        """
+        """Processes valid hardware events."""
         now = datetime.now()
 
-        # 1. Update internal state tracking
-        if value > 0:
-            self.last_activity_map[strategy.name] = now
-
-        # 2. Generate the Rich Payload using our new method
-        # This resolves icons/labels on the SERVER side
+        # Emit Payload (UI update)
         payload = strategy.get_snapshot(value)
-        payload["unit"] = unit  # Add unit explicitly if needed
-
-        # 3. Persist to DB
-        with self.app.app_context():
-            db.session.add(Event(hardware_id=strategy.id, value=value, unit=unit, timestamp=now))
-            db.session.commit()
-
-        # 4. Emit Enriched Data to Frontend
-        # Frontend logic becomes very dumb: just display payload['ui']['icon']
+        payload["unit"] = unit
         bus.emit("hardware_event", payload)
+
+        # Persist Event
+        # Note: ThreadedService runs in main process context, but we need fresh app context for DB
+        try:
+            with self.app.app_context():
+                db.session.add(
+                    Event(hardware_id=strategy.id, value=value, unit=unit, timestamp=now)
+                )
+                db.session.commit()
+        except Exception as e:
+            logger.error(f"DB Write Failed: {e}")
 
     # --- API Support Methods ---
 
@@ -284,5 +321,5 @@ class HardwareManager:
             }
 
     def cleanup(self):
-        self.running = False
+        """Custom cleanup hook called by ServiceManager on shutdown."""
         GPIO.cleanup()

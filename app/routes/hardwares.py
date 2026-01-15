@@ -1,5 +1,6 @@
 from flask import (
     Blueprint,
+    current_app,
     flash,
     redirect,
     render_template,
@@ -120,6 +121,16 @@ def edit_hardware(hardware_id):
                 hardware.configuration = config
 
                 db.session.commit()
+
+                hw_manager = current_app.service_manager.get_service("HardwareManager")
+                if hw_manager:
+                    hw_manager.reload_config()
+                    flash(f'Hardware "{hardware.name}" updated and live.', "success")
+                else:
+                    flash("Saved, but Hardware Service is not running.", "warning")
+
+                return redirect(url_for("hardwares.manage_hardwares"))
+
                 flash(f'Hardware "{hardware.name}" updated.', "success")
                 return redirect(url_for("hardwares.manage_hardwares"))
             except Exception as e:

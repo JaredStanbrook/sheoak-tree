@@ -45,12 +45,16 @@ def get_hardwares():
     Used for the initial dashboard render.
     """
     try:
-        hardware = get_services().get_hardware_manager()
+        hardware = current_app.service_manager.get_service("HardwareManager")
+
+        if not hardware:
+            return jsonify({"success": False, "error": "Hardware service not running"}), 503
 
         response_data = []
         for _, strategy in hardware.strategies.items():
             snapshot = strategy.get_snapshot()
             response_data.append(snapshot)
+
         return jsonify({"success": True, "hardwares": response_data}), 200
 
     except Exception as e:
