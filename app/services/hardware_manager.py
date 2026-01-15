@@ -54,20 +54,25 @@ class HardwareManager:
         defaults = [
             Hardware(
                 name="Living Room",
-                driver_type="gpio_binary",
-                configuration={"pin": 6, "type": "motion"},
+                type="motion_sensor",
+                driver_interface="gpio_binary",
+                configuration={"pin": 6},
             ),
             Hardware(
                 name="Hallway",
-                driver_type="gpio_binary",
-                configuration={"pin": 2, "type": "motion"},
+                type="motion_sensor",
+                driver_interface="gpio_binary",
+                configuration={"pin": 2},
             ),
             Hardware(
                 name="Front Door",
-                driver_type="gpio_binary",
-                configuration={"pin": 3, "type": "door"},
+                type="contact_sensor",
+                driver_interface="gpio_binary",
+                configuration={"pin": 3},
             ),
-            Hardware(name="Kitchen Relay", driver_type="gpio_relay", configuration={"pin": 18}),
+            Hardware(
+                name="Kitchen Relay", driver_interface="gpio_relay", configuration={"pin": 18}
+            ),
         ]
         db.session.add_all(defaults)
         db.session.commit()
@@ -76,49 +81,51 @@ class HardwareManager:
         """Universal Event Loop"""
         while self.running:
             try:
-                with self._lock:
-                    for hw_id, strategy in self.strategies.items():
-                        # Polymorphic read
+                # Iterate over strategies
+                # Assuming self.strategies is Dict[int, HardwareStrategy]
+                for hw_id, strategy in list(self.strategies.items()):
+                    try:
                         result = strategy.read()
 
                         if result:
-                            val, label, unit = result
-                            self._handle_event(hw_id, strategy.name, val, label, unit)
+                            val, unit = result
+                            # PASS THE STRATEGY OBJECT, NOT JUST ID
+                            self._handle_event(strategy, val, unit)
 
-                time.sleep(0.05)
+                    except Exception as e:
+                        logger.error(f"Error reading hw {hw_id}: {e}")
+
+                time.sleep(0.1)  # Polling Interval TODO make configurable
             except Exception as e:
-                logger.error(f"Hardware Loop Error: {e}")
-                time.sleep(1)
+                logger.error(f"Hardware Loop Critical Error: {e}")
+                time.sleep(1)  # Backoff on critical error
 
-    def _handle_event(self, hw_id, name, value, label, unit):
+    def _handle_event(self, strategy, value, unit):
+        """
+        Processes a change in hardware state.
+        :param strategy: The HardwareStrategy instance
+        :param value: The new value
+        :param unit: The unit of measurement
+        """
         now = datetime.now()
 
-        # Update cache for UI
-        # For binary hardwares, we usually consider 1.0 (Active) as activity
+        # 1. Update internal state tracking
         if value > 0:
-            self.last_activity_map[name] = now
+            self.last_activity_map[strategy.name] = now
 
-        # Persist to DB
+        # 2. Generate the Rich Payload using our new method
+        # This resolves icons/labels on the SERVER side
+        payload = strategy.get_snapshot(value)
+        payload["unit"] = unit  # Add unit explicitly if needed
+
+        # 3. Persist to DB
         with self.app.app_context():
-            db.session.add(
-                Event(
-                    hardware_id=hw_id, value=value, formatted_value=label, unit=unit, timestamp=now
-                )
-            )
+            db.session.add(Event(hardware_id=strategy.id, value=value, unit=unit, timestamp=now))
             db.session.commit()
 
-        # Emit Real-time Event
-        bus.emit(
-            "hardware_event",
-            {  # Kept event name "hardware_event" for frontend compatibility
-                "hardware_id": hw_id,
-                "name": name,
-                "event": label,
-                "value": value,
-                "unit": unit,
-                "timestamp": now.isoformat(),
-            },
-        )
+        # 4. Emit Enriched Data to Frontend
+        # Frontend logic becomes very dumb: just display payload['ui']['icon']
+        bus.emit("hardware_event", payload)
 
     # --- API Support Methods ---
 
@@ -127,18 +134,13 @@ class HardwareManager:
         with self._lock:
             data = []
             for hw_id, strategy in self.strategies.items():
-                # Determine "type" for UI icons (motion, door, relay, etc.)
-                # Fallback to driver_type if specific type isn't in config
-                ui_type = strategy.config.get("type", strategy.name.split()[-1].lower())
-                if "relay" in str(strategy.__class__).lower():
-                    ui_type = "relay"
-
                 data.append(
                     {
                         "id": hw_id,
                         "name": strategy.name,
-                        "type": ui_type,
+                        "type": strategy.type,
                         "value": strategy.current_value,
+                        "config": strategy.config,
                         "last_activity": self.last_activity_map.get(
                             strategy.name, datetime.min
                         ).isoformat(),

@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Hardware Configuration</h2>
+        <a href="/" class="btn btn-sm btn-ghost">Back to Dashboard</a>
+    </div>
+</div>
+
+<div class="layout-grid">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">{{ 'Edit Hardware' if edit_hardware else 'Add Hardware' }}</h3>
+            {% if edit_hardware %}
+                <a href="{{ url_for('hardwares.manage_hardwares') }}" class="btn btn-sm btn-ghost">Cancel</a>
+            {% endif %}
+        </div>
+
+        <form method="POST" action="{{ url_for('hardwares.edit_hardware', hardware_id=edit_hardware.id) if edit_hardware else url_for('hardwares.manage_hardwares') }}">
+            
+            <div class="form-group">
+                <label class="form-label">Name</label>
+                <input type="text" name="name" class="form-input" placeholder="e.g. Living Room Motion" required 
+                       value="{{ edit_hardware.name if edit_hardware else '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Device Type</label>
+                <input type="text" name="type" class="form-input" placeholder="e.g. motion, door, switch" 
+                       list="type_suggestions"
+                       value="{{ edit_hardware.type if edit_hardware else '' }}">
+                <datalist id="type_suggestions">
+                {% for type_option in hardware_types %}
+                    <option value="{{ type_option }}">
+                {% endfor %}
+                </datalist>
+            </div>
+            
+        
+
+            <hr style="border-color: var(--border-color); margin: 20px 0;">
+            <h4 class="text-muted text-uppercase text-xs mb-3">Technical Config</h4>
+
+            <div class="form-group">
+                <label class="form-label">GPIO Pin (BCM)</label>
+                <input type="number" name="config_pin" class="form-input" placeholder="e.g. 17" 
+                       value="{{ edit_hardware.configuration.get('pin') if edit_hardware and edit_hardware.configuration else '' }}">
+                <small class="text-muted">Required for GPIO devices</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Driver Interface</label>
+                <select name="driver_interface" class="form-select">
+                    {% for key, label in hardware_interfaces.items() %}
+                        <option value="{{ key }}" 
+                            {% if edit_hardware and edit_hardware.driver_interface == key %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+
+            <hr style="border-color: var(--border-color); margin: 20px 0;">
+            <h4 class="text-muted text-uppercase text-xs mb-3">UI Representation</h4>
+
+            <div class="row" style="display: flex; gap: 15px;">
+                <div class="col" style="flex: 1;">
+                    <label class="form-label">Active Label</label>
+                    <input type="text" name="config_active_label" class="form-input" placeholder="e.g. Open / On"
+                           value="{{ edit_hardware.configuration.get('active_label', '') if edit_hardware else '' }}">
+                </div>
+                <div class="col" style="flex: 1;">
+                    <label class="form-label">Inactive Label</label>
+                    <input type="text" name="config_inactive_label" class="form-input" placeholder="e.g. Closed / Off"
+                           value="{{ edit_hardware.configuration.get('inactive_label', '') if edit_hardware else '' }}">
+                </div>
+            </div>
+
+            <div class="row" style="display: flex; gap: 15px; margin-top: 10px;">
+                <div class="col" style="flex: 1;">
+                    <label class="form-label">Active Icon</label>
+                    <input type="text" name="config_active_icon" class="form-input text-mono" placeholder="e.g. door-open"
+                           value="{{ edit_hardware.configuration.get('active_icon', '') if edit_hardware else '' }}">
+                </div>
+                <div class="col" style="flex: 1;">
+                    <label class="form-label">Inactive Icon</label>
+                    <input type="text" name="config_inactive_icon" class="form-input text-mono" placeholder="e.g. door-closed"
+                           value="{{ edit_hardware.configuration.get('inactive_icon', '') if edit_hardware else '' }}">
+                </div>
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 25px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                <input type="checkbox" name="enabled" id="chk_enabled" {{ 'checked' if (edit_hardware and edit_hardware.enabled) or not edit_hardware else '' }}>
+                <label for="chk_enabled" class="form-label" style="margin: 0; cursor: pointer;">Enabled</label>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block mt-4">
+                {{ 'Save Changes' if edit_hardware else 'Create Hardware' }}
+            </button>
+        </form>
+    </div>
+
+    <div class="card">
+        <div class="table-container">
+            <table class="glass-table">
+                <thead>
+                    <tr>
+                        <th width="40">ID</th>
+                        <th>Name</th>
+                        <th>Config</th>
+                        <th>State</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for hardware in hardwares %}
+                    <tr style="{{ 'background: var(--bg-glass-hover);' if edit_hardware and edit_hardware.id == hardware.id else '' }}">
+                        <td class="text-mono text-muted">#{{ hardware.id }}</td>
+                        <td>
+                            <div style="font-weight: bold;">{{ hardware.name }}</div>
+                            <div style="font-weight: bold;">{{ hardware.type }}</div>
+                            <div class="text-xs text-muted">{{ hardware.driver_interface }}</div>
+                        </td>
+                        <td>
+                            <div class="text-xs text-mono" style="line-height: 1.4;">
+                                {% if hardware.configuration.get('pin') %}
+                                    <span class="badge badge-gray">Pin: {{ hardware.configuration.get('pin') }}</span>
+                                {% endif %}
+                                {% if hardware.configuration.get('active_icon') %}
+                                    <span class="text-muted" title="Has custom UI icons">🎨</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if hardware.enabled %}
+                                <span class="text-success">● Active</span>
+                            {% else %}
+                                <span class="text-muted">○ Disabled</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group flex-end" style="display: flex; gap: 8px;">
+                                <a href="{{ url_for('hardwares.edit_hardware', hardware_id=hardware.id) }}" class="btn btn-sm">Edit</a>
+                                <form method="POST" action="{{ url_for('hardwares.delete_hardware', hardware_id=hardware.id) }}" onsubmit="return confirm('Delete {{ hardware.name }}?');">
+                                    <button type="submit" class="btn btn-sm btn-danger">Del</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="text-center text-muted" style="padding: 30px;">No hardware configured.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

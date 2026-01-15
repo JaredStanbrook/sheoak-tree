@@ -25,7 +25,7 @@ class PresenceController {
       '<tr><td colspan="6" class="text-center">Loading...</td></tr>';
 
     try {
-      const data = await Utils.fetchJson("/api/presence/devices");
+      const data = await Utils.fetchJson("/api/devices");
       this.elements.tableBody.innerHTML = "";
 
       if (data.success) {
@@ -109,7 +109,7 @@ class PresenceController {
 
     btn.textContent = "Saving...";
     try {
-      const res = await Utils.fetchJson(`/api/presence/devices/${id}`, {
+      const res = await Utils.fetchJson(`/api/devices/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, owner, track_presence }),
@@ -131,7 +131,7 @@ class PresenceController {
     if (!confirm("Stop monitoring this device?")) return;
     const id = this.elements.inputs.id.value;
     try {
-      const res = await Utils.fetchJson(`/api/presence/devices/${id}`, { method: "DELETE" });
+      const res = await Utils.fetchJson(`/api/devices/${id}`, { method: "DELETE" });
       if (res.success) {
         this.elements.modal.classList.remove("active");
         this.loadDevices();

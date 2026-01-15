@@ -1,27 +1,11 @@
 /**
  * static/js/core.js
- * Shared utilities and Socket connection
+ * Shared utilities
  */
 export const CONFIG = {
-  socketPath: "/sheoak/socket.io",
-  maxLogEntries: 50, // Reduced slightly for performance
+  maxLogEntries: 50,
   timeZone: "Australia/Perth",
   locale: "en-AU",
-  // Theme Colors matching CSS Variables
-  theme: {
-    primary: "#10b981",
-    danger: "#ef4444",
-    warn: "#f59e0b",
-    text: "#f8fafc",
-    textMuted: "#94a3b8",
-    gridLines: "rgba(255, 255, 255, 0.08)",
-  },
-  icons: {
-    motionActive: '<i data-lucide="eye"></i>',
-    motionInactive: '<i data-lucide="eye-off"></i>',
-    doorActive: '<i data-lucide="door-open"></i>',
-    doorInactive: '<i data-lucide="door-closed"></i>',
-  },
 };
 
 export const Utils = {
@@ -103,8 +87,6 @@ function updateStatus(connected) {
   if (dot) dot.className = `status-dot ${connected ? "connected" : ""}`;
 }
 
-connectStream();
-
 // --- Mobile Navigation & Time Update ---
 const updateTime = () => {
   const el = document.getElementById("system-time");
@@ -119,6 +101,7 @@ const updateTime = () => {
   }
 };
 document.addEventListener("DOMContentLoaded", () => {
+  connectStream();
   // Mobile Navigation Toggle
   const mobileToggle = document.getElementById("mobile-menu-toggle");
   const mobileOverlay = document.getElementById("mobile-nav-overlay");

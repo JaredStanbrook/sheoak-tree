@@ -8,20 +8,54 @@ bp = Blueprint("api", __name__)
 logger = current_app.logger if current_app else None
 
 
-@bp.route("/hardwares")
-def api_hardwares():
-    """Get current state of all hardware hardwares/relays."""
-    hardware = get_services().get_hardware_manager()
-    if not hardware:
-        return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
+@bp.route("/events", methods=["GET"])
+def dev_get_all_events():
+    """
+    Development endpoint to load all events with hardware relationships.
+    """
+    # Check if we are in development mode for safety
+    if current_app.config.get("ENV") != "development":
+        return jsonify(
+            {"success": False, "error": "Endpoint only available in development mode"}
+        ), 403
 
-    return jsonify(
-        {
-            "success": True,
-            "hardwares": hardware.get_hardware_data(),
-            "timestamp": datetime.now().isoformat(),
-        }
-    )
+    try:
+        from app.models import Event
+
+        # Query all events, joining the hardware table to ensure relationships are loaded
+        all_events = Event.query.all()
+
+        return jsonify(
+            {
+                "success": True,
+                "count": len(all_events),
+                "events": [e.to_dict() for e in all_events],
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+    except Exception as e:
+        current_app.logger.error(f"Dev API Error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bp.route("/hardwares", methods=["GET"])
+def get_hardwares():
+    """
+    Returns the current state of all hardware devices.
+    Used for the initial dashboard render.
+    """
+    try:
+        hardware = get_services().get_hardware_manager()
+
+        response_data = []
+        for _, strategy in hardware.strategies.items():
+            snapshot = strategy.get_snapshot()
+            response_data.append(snapshot)
+        return jsonify({"success": True, "hardwares": response_data}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"API Error fetching hardwares: {e}")
+        return jsonify({"success": False, "error": "Failed to fetch hardware data"}), 500
 
 
 @bp.route("/activity/<int:hours>")
@@ -210,205 +244,3 @@ def health_check():
             "services": services,
         }
     ), (200 if status == "healthy" else 503)
-
-
-# ================================
-# PRESENCE MONITORING ENDPOINTS
-# ================================
-
-
-@bp.route("/presence/devices", methods=["GET"])
-def get_presence_devices():
-    """Get all registered devices and their presence status"""
-    try:
-        services = get_services()
-        monitor = services.get_presence_monitor()
-
-        if not monitor:
-            return (
-                jsonify({"success": False, "error": "Presence monitor not available"}),
-                503,
-            )
-
-        devices = monitor.get_devices()
-        return jsonify({"success": True, "devices": devices})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@bp.route("/presence/devices", methods=["POST"])
-def add_presence_device():
-    """Register a new device for presence monitoring"""
-    try:
-        data = request.get_json()
-
-        if not data or "mac_address" not in data or "name" not in data:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Missing required fields: mac_address, name",
-                    }
-                ),
-                400,
-            )
-
-        services = get_services()
-        monitor = services.get_presence_monitor()
-
-        if not monitor:
-            return (
-                jsonify({"success": False, "error": "Presence monitor not available"}),
-                503,
-            )
-
-        success, message = monitor.add_device(
-            mac_address=data["mac_address"], name=data["name"], owner=data.get("owner")
-        )
-
-        if success:
-            return jsonify({"success": True, "message": message})
-        else:
-            return jsonify({"success": False, "error": message}), 400
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@bp.route("/presence/devices/<int:device_id>", methods=["PUT"])
-def update_presence_device(device_id):
-    """Update device information"""
-    try:
-        data = request.get_json()
-
-        if not data:
-            return jsonify({"success": False, "error": "No data provided"}), 400
-
-        services = get_services()
-        monitor = services.get_presence_monitor()
-
-        if not monitor:
-            return (
-                jsonify({"success": False, "error": "Presence monitor not available"}),
-                503,
-            )
-
-        success, message = monitor.update_device(
-            device_id=device_id,
-            name=data.get("name"),
-            owner=data.get("owner"),
-            track_presence=data.get("track_presence"),
-        )
-
-        if success:
-            return jsonify({"success": True, "message": message})
-        else:
-            return jsonify({"success": False, "error": message}), 400
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@bp.route("/presence/devices/<int:device_id>", methods=["DELETE"])
-def remove_presence_device(device_id):
-    """Remove a device from monitoring"""
-    try:
-        services = get_services()
-        monitor = services.get_presence_monitor()
-
-        if not monitor:
-            return (
-                jsonify({"success": False, "error": "Presence monitor not available"}),
-                503,
-            )
-
-        success, message = monitor.remove_device(device_id)
-
-        if success:
-            return jsonify({"success": True, "message": message})
-        else:
-            return jsonify({"success": False, "error": message}), 404
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@bp.route("/presence/history", methods=["GET"])
-def get_presence_history():
-    """Get presence event history"""
-    try:
-        hours = request.args.get("hours", 24, type=int)
-
-        services = get_services()
-        monitor = services.get_presence_monitor()
-
-        if not monitor:
-            return (
-                jsonify({"success": False, "error": "Presence monitor not available"}),
-                503,
-            )
-
-        events = monitor.get_presence_history(hours=hours)
-
-        return jsonify({"success": True, "events": events, "hours": hours})
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@bp.route("/presence/status", methods=["GET"])
-def get_presence_status():
-    """Get presence monitoring system status"""
-    try:
-        services = get_services()
-        monitor = services.get_presence_monitor()
-
-        if not monitor:
-            return (
-                jsonify({"success": False, "error": "Presence monitor not available"}),
-                503,
-            )
-
-        status = monitor.get_status()
-
-        return jsonify({"success": True, "status": status})
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@bp.route("/presence/who-is-home", methods=["GET"])
-def who_is_home():
-    """Quick endpoint to see who is currently home."""
-    try:
-        services = get_services()
-        monitor = services.get_presence_monitor()
-
-        if not monitor:
-            return jsonify({"success": False, "error": "Monitor not available"}), 503
-
-        # Get all devices
-        all_devices = monitor.get_devices()
-
-        # FILTER: Only get devices that are home AND represent a person (track_presence=True)
-        present_devices = [d for d in all_devices if d["is_home"] and d.get("track_presence", True)]
-
-        # Group by owner
-        people_home = {}
-        for device in present_devices:
-            owner = device.get("owner", "Unknown")
-            if owner not in people_home:
-                people_home[owner] = []
-            people_home[owner].append(device["name"])
-
-        return jsonify(
-            {
-                "success": True,
-                "people_home": list(people_home.keys()),
-                "devices_home": present_devices,
-                "count": len(present_devices),
-            }
-        )
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
