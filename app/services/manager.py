@@ -8,9 +8,12 @@ logger = logging.getLogger(__name__)
 
 class ServiceManager:
     _instance = None
-    _hardware_manager = None
-    _processor = None
-    _presence_monitor = None
+
+    def __init__(self):
+        self._hardware_manager = None
+        self._processor = None
+        self._presence_monitor = None
+        self._system_monitor = None
 
     @classmethod
     def get_instance(cls):
@@ -18,93 +21,94 @@ class ServiceManager:
             cls._instance = ServiceManager()
         return cls._instance
 
+    @property
+    def _should_run_services(self):
+        """
+        Determines if background services should start.
+        Returns True if:
+        1. We are in Production (Debug is off), OR
+        2. We are in the Flask Reloader subprocess (Debug is on, but we are the child)
+        """
+        is_debug = os.environ.get("FLASK_DEBUG") == "1"
+        is_reloader = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+
+        # If not debugging, always run. If debugging, only run in the reloader sub-process.
+        return (not is_debug) or is_reloader
+
+    def _get_app_object(self):
+        """Helper to get the real app object for threads"""
+        return current_app._get_current_object()
+
     def get_hardware_manager(self):
-        """Lazy load the Universal Hardware Manager"""
         if self._hardware_manager is None:
-            is_reloader = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
-            is_debug = os.environ.get("FLASK_DEBUG") == "1"
-            is_production = os.environ.get("FLASK_ENV") == "production"
-
-            # Load if we are in reloader, OR if we are NOT in debug mode (Gunicorn)
-            should_load = is_reloader or (not is_debug) or is_production
-
-            if should_load:
+            if self._should_run_services:
                 try:
                     logger.info("Initializing HardwareManager...")
                     from app.services.hardware_manager import HardwareManager
 
-                    real_app = current_app._get_current_object()
-
-                    # HardwareManager loads config/strategies from DB, so no args needed here
-                    self._hardware_manager = HardwareManager(app=real_app)
-                    logger.info("HardwareManager initialized successfully")
+                    self._hardware_manager = HardwareManager(app=self._get_app_object())
                 except Exception as e:
-                    logger.error(f"Failed to initialize HardwareManager: {e}")
+                    logger.error(f"Failed to init HardwareManager: {e}")
             else:
-                logger.info("Skipping HardwareManager initialization (Main process in Debug mode)")
-
+                logger.debug("Skipping HardwareManager (Parent Process)")
         return self._hardware_manager
 
-    def get_processor(self):
-        """Lazy load the Sequence Processor"""
-        if self._processor is None:
-            from app.services.label_advanced import hardwaresequenceProcessor
-
-            # Note: Ensure hardware_activity.csv is still being populated or update this
-            # to read from the new DB Events table in the future.
-            self._processor = hardwaresequenceProcessor("hardware_activity.csv")
-            try:
-                self._processor.load_persistent_state()
-            except Exception:
-                pass
-        return self._processor
-
     def get_presence_monitor(self):
-        """Lazy load the Presence Monitor using Multiprocessing"""
         if self._presence_monitor is None:
-            is_reloader = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
-            is_debug = os.environ.get("FLASK_DEBUG") == "1"
-
-            should_load = not is_debug or is_reloader
-
-            if should_load:
+            if self._should_run_services:
                 try:
-                    logger.info("Initializing PresenceMonitor (Lazy Load)...")
-                    from app.services.presence_monitor import PresenceMonitor
+                    logger.info("Initializing IntelligentPresenceMonitor...")
+                    # Update import to the new consolidated service file
+                    from app.services.presence_monitor import IntelligentPresenceMonitor
 
-                    real_app = current_app._get_current_object()
-
-                    # Get config from app
-                    target_ip = real_app.config.get("SNMP_TARGET_IP", "192.168.1.1")
-                    community = real_app.config.get("SNMP_COMMUNITY", "public")
-                    interval = real_app.config.get("PRESENCE_SCAN_INTERVAL", 60)
-
-                    self._presence_monitor = PresenceMonitor(
-                        app=real_app,
-                        target_ip=target_ip,
-                        community=community,
-                        scan_interval=interval,
+                    app = self._get_app_object()
+                    self._presence_monitor = IntelligentPresenceMonitor(
+                        app=app,
+                        target_ip=app.config.get("SNMP_TARGET_IP", "192.168.1.1"),
+                        community=app.config.get("SNMP_COMMUNITY", "public"),
+                        scan_interval=app.config.get("PRESENCE_SCAN_INTERVAL", 60),
                     )
-
-                    # Start the isolated process
                     self._presence_monitor.start()
-
                 except Exception as e:
-                    logger.error(f"Failed to initialize PresenceMonitor: {e}")
+                    logger.error(f"Failed to init PresenceMonitor: {e}")
             else:
-                logger.info("Skipping PresenceMonitor initialization (Main process in Debug mode)")
-
+                logger.debug("Skipping PresenceMonitor (Parent Process)")
         return self._presence_monitor
 
-    def cleanup(self):
-        """Cleanup all services"""
-        if self._hardware_manager:
-            logger.info("Cleaning up HardwareManager...")
-            self._hardware_manager.cleanup()
+    def get_system_monitor(self):
+        if self._system_monitor is None:
+            if self._should_run_services:
+                try:
+                    logger.info("Initializing SystemMonitor...")
+                    from app.services.system_monitor import SystemMonitor
 
-        if self._presence_monitor:
-            logger.info("Cleaning up PresenceMonitor...")
-            self._presence_monitor.stop()
+                    self._system_monitor = SystemMonitor(app=self._get_app_object())
+                except Exception as e:
+                    logger.error(f"Failed to init SystemMonitor: {e}")
+        return self._system_monitor
+
+    def get_processor(self):
+        if self._processor is None:
+            if self._should_run_services:
+                try:
+                    from app.services.label_advanced import hardwaresequenceProcessor
+
+                    self._processor = hardwaresequenceProcessor("hardware_activity.csv")
+                    self._processor.load_persistent_state()
+                except Exception as e:
+                    logger.error(f"Failed to init Processor: {e}")
+            return self._processor
+
+    def cleanup(self):
+        """Gracefully stop all services"""
+        if self._should_run_services:
+            logger.info("Stopping all background services...")
+            if self._hardware_manager:
+                self._hardware_manager.cleanup()
+            if self._presence_monitor:
+                self._presence_monitor.stop()
+            if self._system_monitor:
+                self._system_monitor.stop()
 
 
 def get_services():

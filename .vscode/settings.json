@@ -24,6 +24,11 @@
         "editor.defaultFormatter": "esbenp.prettier-vscode",
         "editor.formatOnSave": true
     },
+    "prettier.documentSelectors": [
+        "**/*.html"
+    ],
+    "javascript.suggest.autoImports": true,
+    "javascript.suggestionActions.enabled": true,
     "ruff.configuration": "~/.pyproject.toml",
     "files.exclude": {
         "**/__pycache__": true,

@@ -1,8 +1,12 @@
+import atexit
 import logging
+import os
 
 from flask import Flask, jsonify, render_template, request
 
 from app.extensions import db, migrate, socketio
+from app.routes.devices import devices_bp
+from app.services.manager import get_services
 from config import Config
 
 # Configure logging
@@ -11,15 +15,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+basedir = os.path.abspath(os.path.dirname(__file__))
+
 
 def create_app(config_class=Config):
-    app = Flask(__name__, instance_relative_config=True)
+    app = Flask(
+        __name__, instance_path=os.path.join(basedir, "data"), instance_relative_config=True
+    )
     app.config.from_object(config_class)
 
     # Initialize Extensions
     db.init_app(app)
     migrate.init_app(app, db)
     socketio.init_app(app, path="/sheoak/socket.io")
+
+    # Initialize Services
+    with app.app_context():
+        services = get_services()
+
+        # Start System Monitor
+        services.get_system_monitor()
+
+        # Start Presence Monitor (Scanning Service)
+        services.get_presence_monitor()
 
     # Register Blueprints
     from app.routes.api import bp as api_bp
@@ -29,6 +47,7 @@ def create_app(config_class=Config):
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(hardwares_bp, url_prefix="/hardwares")
+    app.register_blueprint(devices_bp)
 
     # Global Error Handlers
     register_error_handlers(app)

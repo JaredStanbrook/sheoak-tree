@@ -1,7 +1,56 @@
 /**
  * static/js/dashboard.js
+ * Unified Architecture: Adapter Pattern + Defensive State Management
  */
-import { Utils, CONFIG } from "./core.js";
+import { Utils } from "./core.js";
+
+// ============================================================
+// HARDWARE ADAPTER CONFIGURATION
+// Single source of truth for hardware type behavior
+// ============================================================
+
+const HARDWARE_DEFAULTS = {
+  relay: {
+    inactiveIcon: "power-off",
+    activeIcon: "power",
+    inactiveLabel: "Off",
+    activeLabel: "On",
+    colorOn: "status-active",
+    colorOff: "status-inactive",
+  },
+
+  contact_sensor: {
+    inactiveIcon: "rows-2",
+    activeIcon: "rectangle-horizontal",
+    inactiveLabel: "Secure",
+    activeLabel: "Open",
+    colorOn: "status-warning",
+    colorOff: "status-safe",
+  },
+
+  motion_sensor: {
+    inactiveIcon: "eye-off",
+    activeIcon: "eye",
+    inactiveLabel: "No Motion",
+    activeLabel: "Motion Detected",
+    colorOn: "status-danger",
+    colorOff: "status-safe",
+  },
+
+  // Fallback
+  __unknown__: {
+    inactiveIcon: "help-circle",
+    activeIcon: "help-circle",
+    inactiveLabel: "Unknown",
+    activeLabel: "Unknown",
+    colorOn: "status-warning",
+    colorOff: "status-inactive",
+  },
+};
+
+// ============================================================
+// DASHBOARD CONTROLLER
+// ============================================================
 
 class DashboardController {
   constructor() {
@@ -11,255 +60,393 @@ class DashboardController {
       widgetList: document.getElementById("people-list"),
       widgetCount: document.getElementById("home-count"),
     };
+
+    // State: Maps hardware ID -> Hardware Object
+    this.state = new Map();
+
+    // Bind methods to preserve 'this' context
+    this.handleGridClick = this.handleGridClick.bind(this);
+    this.handleHardwareUpdate = this.handleHardwareUpdate.bind(this);
+    this.handlePresenceUpdate = this.handlePresenceUpdate.bind(this);
+    this.refreshSummary = this.refreshSummary.bind(this);
+    this.updateRelativeTimes = this.updateRelativeTimes.bind(this);
+
+    this.init();
+  }
+
+  init() {
     this.bindEvents();
-    this.refreshGrid();
+    this.initGrid();
     this.loadWhoIsHome();
-    window.dashboard = this;
+    this.startTimers();
+  }
+  startTimers() {
+    // Run every 1 second to keep "Xs ago" fresh
+    setInterval(this.updateRelativeTimes, 1000);
   }
 
+  updateRelativeTimes() {
+    this.state.forEach((hw, id) => {
+      // 1. Skip if no activity record
+      if (!hw.lastActivity) return;
+
+      // 2. Skip relays (they have buttons, not time text)
+      if (hw.type === "relay") return;
+
+      // 3. Find the specific DOM element
+      const card = document.getElementById(`hw-card-${id}`);
+      if (!card) return;
+
+      const timeEl = card.querySelector(".js-time-ago");
+      if (!timeEl) return;
+
+      // 4. Calculate fresh string
+      const newTimeStr = Utils.timeAgo(hw.lastActivity);
+
+      // 5. Update only if changed (prevents unnecessary layout thrashing)
+      if (timeEl.textContent !== newTimeStr) {
+        timeEl.textContent = newTimeStr;
+      }
+    });
+  }
   bindEvents() {
-    window.addEventListener("hardware_update", () => this.refreshGrid());
-    window.addEventListener("presence_update", () => this.loadWhoIsHome());
-  }
-
-  async refreshGrid() {
-    try {
-      const data = await Utils.fetchJson("/api/hardwares");
-      if (data.hardwares) this.renderSensorGrid(data.hardwares);
-    } catch (e) {
-      console.error(e);
+    // Event delegation for grid interactions
+    if (this.elements.grid) {
+      this.elements.grid.addEventListener("click", this.handleGridClick);
     }
-  }
 
-  async toggleRelay(hardwareId) {
-    try {
-      // Optimistic UI update could go here (toggle button immediately)
-      await fetch(`/api/hardwares/${hardwareId}/toggle`, { method: "POST" });
-    } catch (e) {
-      alert("Error communicating with device.");
-    }
+    // Global event listeners for real-time updates
+    window.addEventListener("hardware_update", this.handleHardwareUpdate);
+    window.addEventListener("presence_update", this.handlePresenceUpdate);
+  }
+  // ============================================================
+  // RENDER STRATEGIES
+  // ============================================================
+
+  /**
+   * Generates render properties.
+   * Relies on the 'ui' object sent from the Python backend.
+   */
+  getRenderProps(hw) {
+    // 1. Defensively get the UI object (fallback provided for safety)
+    const ui = hw.ui || {
+      text: "Loading...",
+      color: "status-inactive",
+      icon: "help-circle",
+      active: false,
+    };
+
+    const isActive = ui.active;
+
+    return {
+      statusText: ui.text,
+      statusClass: ui.color,
+      iconName: ui.icon,
+      // Time calc remains client-side for "X seconds ago" accuracy
+      timeAgo: hw.lastActivity ? Utils.timeAgo(hw.lastActivity) : "Never",
+      cardActiveClass: isActive ? "is-active" : "",
+      isActive: isActive,
+    };
   }
 
   /**
-   * Helper: Calculates view state (icons, text, classes) from data
+   * Determines footer content based on adapter's render mode.
    */
-  getRenderProps(hardware) {
-    const isActive = hardware.value === 1;
-
-    // Normalize type
-    let type = (hardware.type || "motion").toLowerCase();
-    if (type.includes("contact")) type = "door";
-    if (type.includes("pir")) type = "motion";
-
-    let statusText = "Secure";
-    let iconHtml = "";
-
-    // Determine UI Props based on Type
-    switch (type) {
-      case "relay":
-        statusText = isActive ? "Active" : "Off";
-        iconHtml = "💡";
-        break;
-      case "door":
-        statusText = isActive ? "Open" : "Secure";
-        iconHtml = isActive ? CONFIG.icons.doorActive : CONFIG.icons.doorInactive;
-        break;
-      default: // Motion & others
-        statusText = isActive ? "Detected" : "Secure";
-        iconHtml = isActive ? CONFIG.icons.motionActive : CONFIG.icons.motionInactive;
-        break;
-    }
-
-    return { type, isActive, statusText, iconHtml, hardware };
-  }
-
-  renderSensorGrid(hardwares) {
-    if (!this.elements.grid) return;
-
-    // 1. Update Summary
-    const activeCount = hardwares.filter((s) => s.value === 1 && s.type !== "relay").length;
-    this.updateSystemSummary(activeCount);
-
-    // 2. Track processed IDs to handle removals
-    const processedIds = new Set();
-
-    hardwares.forEach((hardware) => {
-      processedIds.add(hardware.id);
-      const existingCard = document.getElementById(`card-${hardware.id}`);
-      const props = this.getRenderProps(hardware);
-
-      if (existingCard) {
-        this.updateCard(existingCard, props);
-      } else {
-        this.createCard(props);
-      }
-    });
-
-    // 3. Cleanup removed hardware
-    // Convert HTMLCollection to Array to safely iterate while removing
-    Array.from(this.elements.grid.children).forEach((child) => {
-      const idStr = child.id.replace("card-", "");
-      const id = parseInt(idStr, 10);
-      if (!isNaN(id) && !processedIds.has(id)) {
-        child.remove();
-      }
-    });
-  }
-
-  createCard(props) {
-    const { hardware, type, isActive, statusText, iconHtml } = props;
-
-    // Build Footer HTML
-    let footerContent = "";
+  getCardFooter(hw) {
+    const { type, id } = hw;
+    // We still check type for the button interaction,
+    // but visual state comes from getRenderProps
     if (type === "relay") {
-      const btnLabel = isActive ? "Turn Off" : "Turn On";
+      const isActive = hw.ui ? hw.ui.active : Boolean(hw.value);
       const btnClass = isActive ? "btn-primary" : "btn-secondary";
-      footerContent = `
-        <button class="btn btn-sm btn-block ${btnClass} js-relay-btn" 
-          onclick="window.dashboard.toggleRelay(${hardware.id})">
-          ${btnLabel}
-        </button>`;
-    } else {
-      footerContent = `
-        <div class="text-muted" style="display:flex; justify-content:space-between; font-size: 0.8rem;">
-          <span>Last Event</span>
-          <span class="js-time-ago">${Utils.timeAgo(hardware.last_activity)}</span>
-        </div>`;
+      const btnText = isActive ? "Turn Off" : "Turn On"; // Could also come from server if desired
+
+      return `
+          <button class="btn btn-sm btn-block ${btnClass} js-action-toggle" 
+                  data-id="${id}">
+            ${btnText}
+          </button>`;
     }
 
-    const html = `
-      <div class="card ${isActive ? "is-active" : ""}" id="card-${hardware.id}">
-        <div class="hardware-header">
-          <div>
-            <div class="hardware-name">${hardware.name}</div>
-            <div class="hardware-meta" style="font-weight: ${isActive ? "600" : "400"}">
-              ${statusText}
-            </div>
-          </div>
-          <div class="hardware-icon">${iconHtml}</div>
-        </div>
-        <div class="hardware-footer" style="margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.05);">
-            ${footerContent}
-        </div>
-      </div>`;
+    // Default Footer (Sensors)
+    const props = this.getRenderProps(hw);
+    return `
+        <div class="hardware-footer-meta">
+          <span class="text-muted text-xs">Last Event</span>
+          <span class="text-xs js-time-ago">${props.timeAgo}</span>
+        </div>`;
+  }
 
-    this.elements.grid.insertAdjacentHTML("beforeend", html);
+  // ============================================================
+  // DOM MANIPULATION
+  // ============================================================
+  refreshSummary() {
+    let activeCount = 0;
+    this.state.forEach((hw) => {
+      // Use the server-provided 'active' flag if available
+      const isActive = hw.ui ? hw.ui.active : Boolean(hw.value);
 
-    // OPTIMIZATION: Only render icons for this specific new card
-    const newCard = this.elements.grid.lastElementChild;
+      if (isActive && hw.type !== "relay") {
+        activeCount++;
+      }
+    });
+    this.updateSystemSummary(activeCount);
+  }
+
+  async initGrid() {
+    try {
+      const data = await Utils.fetchJson("/api/hardwares");
+      if (!data.hardwares || !Array.isArray(data.hardwares)) return;
+
+      const currentIds = new Set();
+
+      data.hardwares.forEach((raw) => {
+        // Ensure timestamp is a Date object
+        if (raw.lastActivity && typeof raw.lastActivity === "string") {
+          raw.lastActivity = new Date(raw.lastActivity);
+        }
+        currentIds.add(raw.hardware_id);
+        this.renderCard(raw);
+        this.state.set(raw.hardware_id, raw);
+      });
+
+      // Cleanup
+      this.state.forEach((_, id) => {
+        if (!currentIds.has(id)) this.removeCard(id);
+      });
+
+      this.refreshSummary();
+      this.refreshIcons();
+    } catch (e) {
+      console.error("Dashboard Sync Failed:", e);
+    }
+  }
+
+  renderCard(hw) {
+    if (!this.elements.grid) return;
+    const existingCard = document.getElementById(`hw-card-${hw.hardware_id}`);
+
+    if (existingCard) {
+      this.updateCard(existingCard, hw);
+    } else {
+      this.createCard(hw);
+    }
+  }
+
+  createCard(hw) {
+    const props = this.getRenderProps(hw);
+    const footerHtml = this.getCardFooter(hw);
+
+    const card = document.createElement("div");
+    card.id = `hw-card-${hw.hardware_id}`;
+    card.className = `card hardware-card ${props.cardActiveClass}`;
+    card.dataset.type = hw.type;
+
+    card.innerHTML = `
+      <div class="hardware-header">
+        <div>
+          <div class="hardware-name">${Utils.escape(hw.name)}</div>
+          <div class="hardware-meta ${props.statusClass}">${props.statusText}</div>
+        </div>
+        <div class="hardware-icon">
+          <i data-lucide="${props.iconName}"></i>
+        </div>
+      </div>
+      <div class="hardware-footer-wrapper" id="hw-footer-${hw.hardware_id}">
+        ${footerHtml}
+      </div>
+    `;
+
+    this.elements.grid.appendChild(card);
+  }
+
+  updateCard(card, hw) {
+    const props = this.getRenderProps(hw);
+
+    // 1. Active State
+    if (props.isActive) {
+      card.classList.add("is-active");
+    } else {
+      card.classList.remove("is-active");
+    }
+
+    // 2. Status Text & Color
+    const statusEl = card.querySelector(".hardware-meta");
+    if (statusEl) {
+      statusEl.textContent = props.statusText;
+      statusEl.className = `hardware-meta ${props.statusClass}`;
+    }
+
+    // 3. Icon
+    const iconEl = card.querySelector("[data-lucide]");
+    if (iconEl && iconEl.getAttribute("data-lucide") !== props.iconName) {
+      iconEl.setAttribute("data-lucide", props.iconName);
+      this.refreshIcons(card);
+    }
+
+    // 4. Footer (Button Text or Time)
+    const footerWrapper = card.querySelector(`#hw-footer-${hw.hardware_id}`);
+    if (footerWrapper) {
+      if (hw.type === "relay") {
+        const btn = footerWrapper.querySelector("button");
+        if (btn) {
+          const btnText = props.isActive ? "Turn Off" : "Turn On";
+          btn.textContent = btnText;
+          btn.className = `btn btn-sm btn-block js-action-toggle ${
+            props.isActive ? "btn-primary" : "btn-secondary"
+          }`;
+        }
+      } else {
+        const timeEl = footerWrapper.querySelector(".js-time-ago");
+
+        if (timeEl) timeEl.textContent = props.timeAgo;
+      }
+    }
+  }
+
+  removeCard(id) {
+    const card = document.getElementById(`hw-card-${id}`);
+    if (card) card.remove();
+    this.state.delete(id);
+  }
+
+  refreshIcons(rootNode) {
     if (window.lucide) {
       window.lucide.createIcons({
-        root: newCard,
-        attrs: { class: "icon-svg" }, // Optional: Add default class to all icons
+        root: rootNode,
+        nameAttr: "data-lucide",
       });
     }
   }
 
-  updateCard(card, props) {
-    const { hardware, type, isActive, statusText, iconHtml } = props;
+  // ============================================================
+  // EVENT HANDLERS
+  // ============================================================
 
-    // 1. Toggle Active Class
-    if (isActive) card.classList.add("is-active");
-    else card.classList.remove("is-active");
+  async handleGridClick(e) {
+    const btn = e.target.closest(".js-action-toggle");
+    if (!btn || btn.disabled) return;
 
-    // 2. Update Status Text
-    const metaEl = card.querySelector(".hardware-meta");
-    if (metaEl && metaEl.textContent !== statusText) {
-      metaEl.textContent = statusText;
-      metaEl.style.fontWeight = isActive ? "600" : "400";
-    }
+    const id = parseInt(btn.dataset.id, 10);
+    if (isNaN(id)) return;
 
-    // 3. Update Icon (Only if changed to avoid SVG flicker)
-    const iconEl = card.querySelector(".hardware-icon");
-    // Simple check: compare length or first few chars if strict equality is too heavy
-    if (iconEl && iconEl.innerHTML !== iconHtml) {
-      iconEl.innerHTML = iconHtml;
-      if (window.lucide) {
-        window.lucide.createIcons({ root: iconContainer });
-      }
-    }
+    await this.toggleHardware(id, btn);
+  }
 
-    // 4. Update Footer
-    if (type === "relay") {
-      const btn = card.querySelector(".js-relay-btn");
-      if (btn) {
-        const newLabel = isActive ? "Turn Off" : "Turn On";
-        const newClass = isActive ? "btn-primary" : "btn-secondary";
-        const oldClass = isActive ? "btn-secondary" : "btn-primary";
+  async toggleHardware(id, btn) {
+    const originalText = btn.textContent;
+    btn.textContent = "...";
+    btn.disabled = true;
 
-        if (btn.textContent.trim() !== newLabel) btn.textContent = newLabel;
-        if (btn.classList.contains(oldClass)) {
-          btn.classList.replace(oldClass, newClass);
-        }
-      }
-    } else {
-      const timeEl = card.querySelector(".js-time-ago");
-      if (timeEl) {
-        // Always update time ago
-        timeEl.textContent = Utils.timeAgo(hardware.last_activity);
-      }
+    try {
+      const res = await fetch(`/api/hardwares/${id}/toggle`, { method: "POST" });
+      if (!res.ok) throw new Error("Toggle failed");
+    } catch (err) {
+      console.error("Toggle Error:", err);
+      alert("Failed to toggle device");
+      btn.textContent = originalText;
+    } finally {
+      btn.disabled = false;
     }
   }
 
+  handleHardwareUpdate(e) {
+    const data = e.detail; // Payload: { hardware_id, value, ui: {...}, timestamp }
+    if (!data || !data.hardware_id) return;
+    const hw = this.state.get(data.hardware_id);
+
+    if (hw) {
+      hw.value = data.value;
+
+      if (data.ui) {
+        hw.ui = data.ui;
+      }
+
+      if (data.timestamp) {
+        hw.lastActivity = new Date(data.timestamp);
+      }
+
+      this.renderCard(hw);
+      this.refreshSummary();
+    }
+  }
+
+  handlePresenceUpdate() {
+    this.loadWhoIsHome();
+  }
+
+  // ============================================================
+  // AUXILIARY WIDGETS
+  // ============================================================
+
   updateSystemSummary(activeCount) {
     if (!this.elements.summary) return;
-    // Don't rebuild if the count hasn't changed?
-    // For simplicity, innerHTML is fine here as it's a small element.
-    // ... (Keep existing summary logic) ...
+
     if (activeCount === 0) {
       this.elements.summary.innerHTML = `
-          <div class="card" style="padding: 16px; display: flex; align-items: center; gap: 16px;">
-              <div style="background: rgba(16, 185, 129, 0.1); color: #059669; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">✓</div>
-              <div>
-                  <div style="font-weight: 600;">System Secure</div>
-                  <div class="text-muted" style="font-size: 0.9rem;">All hardwares are quiet</div>
-              </div>
-          </div>`;
+        <div class="card status-card-safe">
+          
+          <div>
+            <div class="font-bold">System Secure</div>
+            <div class="text-muted text-sm">All sensors are quiet</div>
+          </div>
+        </div>`;
     } else {
       this.elements.summary.innerHTML = `
-          <div class="card" style="padding: 16px; display: flex; align-items: center; gap: 16px; border: 1px solid var(--color-danger);">
-              <div style="background: var(--color-danger-bg); color: var(--color-danger); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">!</div>
-              <div>
-                  <div style="font-weight: 600; color: var(--color-danger);">Activity Detected</div>
-                  <div class="text-muted" style="font-size: 0.9rem;">${activeCount} hardware(s) currently active</div>
-              </div>
-          </div>`;
+        <div class="card is-active">
+          
+          <div>
+            <div class="font-bold text-danger">Activity Detected</div>
+            <div class="text-muted text-sm">${activeCount} sensor(s) active</div>
+          </div>
+        </div>`;
     }
   }
 
   async loadWhoIsHome() {
-    // ... (Keep existing logic) ...
     if (!this.elements.widgetList) return;
+
     try {
-      const data = await Utils.fetchJson("/api/presence/who-is-home");
-      if (data.success && this.elements.widgetCount) {
+      const data = await Utils.fetchJson("/api/devices/home");
+      if (!data.success) return;
+
+      if (this.elements.widgetCount) {
         this.elements.widgetCount.textContent = data.count;
-        this.elements.widgetList.innerHTML = "";
-        if (data.count === 0) {
-          this.elements.widgetList.innerHTML =
-            '<span class="text-muted" style="font-size: 0.9rem;">No one is home.</span>';
-          return;
-        }
-        data.people_home.forEach((person) => {
-          if (person === "Unknown") return;
-          const chip = document.createElement("span");
-          chip.className = "chip active";
-          chip.innerHTML = `👤 ${person}`;
-          this.elements.widgetList.appendChild(chip);
-        });
-        if (data.count > data.people_home.length) {
-          const diff = data.count - data.people_home.length;
-          if (diff > 0) {
-            const chip = document.createElement("span");
-            chip.className = "chip";
-            chip.innerHTML = `${diff} Unknown Device(s)`;
-            this.elements.widgetList.appendChild(chip);
-          }
-        }
+      }
+
+      this.elements.widgetList.innerHTML = "";
+
+      if (data.count === 0) {
+        this.elements.widgetList.innerHTML =
+          '<span class="text-muted text-sm">No one is home.</span>';
+        return;
+      }
+
+      // Render known people
+      data.people_home.forEach((person) => {
+        if (!person || person === "Unknown") return;
+        const chip = document.createElement("span");
+        chip.className = "chip active";
+        chip.textContent = `👤 ${person}`;
+        this.elements.widgetList.appendChild(chip);
+      });
+
+      // Render unknown device count
+      const knownCount = data.people_home.length;
+      if (data.count > knownCount) {
+        const diff = data.count - knownCount;
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = `${diff} Unknown Device(s)`;
+        this.elements.widgetList.appendChild(chip);
       }
     } catch (e) {
-      console.error(e);
+      console.error("Presence Load Error:", e);
     }
   }
 }
-window.dashboard = new DashboardController();
+
+// Initialize when DOM is ready
+document.addEventListener("DOMContentLoaded", () => {
+  new DashboardController();
+});

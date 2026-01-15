@@ -1,6 +1,5 @@
 from flask import (
     Blueprint,
-    current_app,
     flash,
     redirect,
     render_template,
@@ -10,10 +9,46 @@ from flask import (
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import HARDWARE_INTERFACES, Hardware
+from app.models import HARDWARE_INTERFACES, HARDWARE_TYPES, Hardware
 
-bp = Blueprint("hardwares", __name__)
-logger = current_app.logger if current_app else None
+bp = Blueprint("hardwares", __name__, url_prefix="/hardwares")
+
+
+# --- HELPER: Dynamic Form Parser ---
+def _parse_hardware_form(form_data):
+    """
+    Extracts core fields and packages all 'config_' fields into a JSON dict.
+    Returns: (name, driver_interface, enabled, configuration_dict)
+    """
+    name = form_data.get("name")
+    type = form_data.get("type")
+    driver_interface = form_data.get("driver_interface")  # Matches <select name="driver_interface">
+    enabled = True if form_data.get("enabled") else False
+
+    configuration = {}
+
+    # The Magic Loop: Finds any input named 'config_...'
+    for key, value in form_data.items():
+        if key.startswith("config_"):
+            # Strip prefix (e.g., "config_pin" -> "pin")
+            clean_key = key[7:]
+
+            # Handle empty strings (don't save them to keep JSON clean)
+            if not value or not value.strip():
+                continue
+
+            value = value.strip()
+
+            # auto-convert 'pin' to integer
+            if clean_key == "pin":
+                try:
+                    configuration[clean_key] = int(value)
+                except ValueError:
+                    pass  # Keep as string or ignore if invalid
+            else:
+                configuration[clean_key] = value
+
+    return name, type, driver_interface, enabled, configuration
 
 
 # --- READ & CREATE ---
@@ -21,24 +56,19 @@ logger = current_app.logger if current_app else None
 def manage_hardwares():
     # Handle Creating New Hardware
     if request.method == "POST":
-        name = request.form.get("name")
-        pin = request.form.get("pin")
-        driver_type = request.form.get("type")
-        enabled = True if request.form.get("enabled") else False
+        name, type, driver_interface, enabled, config = _parse_hardware_form(request.form)
 
-        if not name or not pin:
-            flash("Name and Pin are required.", "error")
+        if not name:
+            flash("Name is required.", "error")
+        elif driver_interface not in HARDWARE_INTERFACES:
+            flash("Invalid hardware driver type selected.", "error")
         else:
-            if driver_type not in HARDWARE_INTERFACES:
-                flash("Invalid hardware type", "error")
             try:
                 new_hw = Hardware(
                     name=name,
-                    driver_type=driver_type,
-                    configuration={
-                        "pin": request.form.get("pin")
-                        # You might add specific config defaults here based on type if needed
-                    },
+                    type=type,
+                    driver_interface=driver_interface,
+                    configuration=config,
                     enabled=enabled,
                 )
                 db.session.add(new_hw)
@@ -49,15 +79,16 @@ def manage_hardwares():
                 db.session.rollback()
                 flash(f"Error adding hardware: {str(e)}", "error")
 
-    # Get all hardware
+    # Get all hardware for the list
     stmt = select(Hardware).order_by(Hardware.id)
     hardwares = db.session.execute(stmt).scalars().all()
 
     return render_template(
-        "hardwares_manage.html",
+        "hardware_manage.html",
         hardwares=hardwares,
         edit_hardware=None,
         hardware_interfaces=HARDWARE_INTERFACES,
+        hardware_types=HARDWARE_TYPES,
     )
 
 
@@ -66,40 +97,45 @@ def manage_hardwares():
 def edit_hardware(hardware_id):
     # Retrieve Hardware
     hardware = db.session.get(Hardware, hardware_id)
+
     if not hardware:
-        return render_template("500.html", error="Hardware not found"), 404
+        # Fallback if ID doesn't exist
+        flash("Hardware ID not found.", "error")
+        return redirect(url_for("hardwares.manage_hardwares"))
 
     if request.method == "POST":
-        try:
-            hardware.name = request.form.get("name")
-            pin = int(request.form.get("pin"))
-            s_type = request.form.get("type")
-            hardware.enabled = True if request.form.get("enabled") else False
+        name, type, driver_interface, enabled, config = _parse_hardware_form(request.form)
 
-            # Update Configuration based on Type
-            if s_type == "relay":
-                hardware.driver_type = "gpio_relay"
-                hardware.configuration = {"pin": pin}
-            else:
-                hardware.driver_type = "gpio_binary"
-                hardware.configuration = {"pin": pin, "type": s_type}
+        if not name:
+            flash("Name is required.", "error")
+        else:
+            try:
+                hardware.name = name
+                hardware.type = type
+                hardware.driver_interface = driver_interface
+                hardware.enabled = enabled
 
-            db.session.commit()
-            flash(f'Hardware "{hardware.name}" updated.', "success")
-            return redirect(url_for("hardwares.manage_hardwares"))
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error updating: {str(e)}", "error")
+                # We replace the entire configuration with the new form state
+                # This ensures removed fields (cleared inputs) are removed from JSON
+                hardware.configuration = config
 
-    # Fetch list for table
+                db.session.commit()
+                flash(f'Hardware "{hardware.name}" updated.', "success")
+                return redirect(url_for("hardwares.manage_hardwares"))
+            except Exception as e:
+                db.session.rollback()
+                flash(f"Error updating: {str(e)}", "error")
+
+    # Fetch list for table context (so the table still appears below the edit form)
     stmt = select(Hardware).order_by(Hardware.id)
     all_hardwares = db.session.execute(stmt).scalars().all()
 
     return render_template(
-        "hardwares_manage.html",
+        "hardware_manage.html",
         hardwares=all_hardwares,
-        edit_hardware=hardware,
+        edit_hardware=hardware,  # Triggers the "Edit Mode" in the template
         hardware_interfaces=HARDWARE_INTERFACES,
+        hardware_types=HARDWARE_TYPES,
     )
 
 

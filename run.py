@@ -1,11 +1,12 @@
-import os
 import atexit
-from config import get_config
+import os
+
+from dotenv import load_dotenv
+
 from app import create_app
 from app.extensions import socketio
 from app.services.manager import get_services
-
-from dotenv import load_dotenv
+from config import get_config
 
 load_dotenv()
 

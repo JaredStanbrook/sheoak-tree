@@ -2,7 +2,7 @@
 """
 Motion Sensor Web App for Raspberry Pi
 Live display of NC (Normally Closed) contact hardwares via web interface
-Enhanced with persistent logging and frequency-based activity graphs in Perth timezone
+ with persistent logging and frequency-based activity graphs in Perth timezone
 HARDWARE WIRING CONFIGURATIONS:
 1. All hardwares: NC (Normally Closed) contacts
    - Use internal pull-up resistors
@@ -2085,11 +2085,11 @@ with open("templates/index.html", "w") as f:
 
 if __name__ == "__main__":
     try:
-        logger.info("Starting Enhanced Motion Sensor Web App with Frequency Analysis...")
+        logger.info("Starting  Motion Sensor Web App with Frequency Analysis...")
         logger.info("New Features:")
         logger.info("- Frequency-based activity analysis with configurable time intervals")
         logger.info("- Perth timezone support with 12-hour time format")
-        logger.info("- Enhanced graphing with activity summaries")
+        logger.info("-  graphing with activity summaries")
         logger.info("- Real-time chart updates")
         logger.info("Access the web interface at: http://[pi-ip-address]:5000")
 
