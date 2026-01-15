@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
+from sqlalchemy import desc
 
 from app.extensions import db
 from app.models import Device, DeviceAssociation, NetworkSnapshot, PresenceEvent
-from app.services.manager import get_services
 
 # Create blueprint (add this to your app/__init__.py if you don't have one)
 devices_bp = Blueprint("devices", __name__, url_prefix="/api/devices")
@@ -285,59 +285,61 @@ def remove_device(device_id):
 @devices_bp.route("/status", methods=["GET"])
 def get_monitoring_status():
     """
-    Get presence monitoring system status
+    Get presence monitoring system status.
 
-    Returns overall system health and statistics
+    ARCHITECTURAL NOTE:
+    This endpoint is a DATA CONSUMER. It does not touch the background service.
+    It infers system health by checking the recency of data in the DB.
     """
     try:
-        # Get service manager
-        services = get_services()
-        monitor = services.get_presence_monitor()
+        # 1. Config Context (Static)
+        scan_interval = current_app.config.get("PRESENCE_SCAN_INTERVAL", 60)
 
-        # Device statistics
-        total_devices = Device.query.count()
-        tracked_devices = Device.query.filter_by(track_presence=True).count()
-        currently_home = Device.query.filter_by(is_home=True).count()
-        randomized_macs = Device.query.filter_by(is_randomized_mac=True).count()
-        linked_devices = Device.query.filter(Device.linked_to_device_id.isnot(None)).count()
+        # 2. Liveness Check (Data-Driven)
+        # We define "healthy" as having a snapshot within (Interval * 3) seconds
+        latest_snapshot = NetworkSnapshot.query.order_by(desc(NetworkSnapshot.timestamp)).first()
 
-        # Recent activity
-        recent_events = PresenceEvent.query.order_by(PresenceEvent.timestamp.desc()).limit(10).all()
+        monitor_running = False
+        last_scan_time = None
 
-        events_list = []
-        for event in recent_events:
-            device = Device.query.get(event.device_id)
-            events_list.append(
-                {
-                    "device_name": device.name if device else "Unknown",
-                    "event_type": event.event_type,
-                    "timestamp": event.timestamp.isoformat(),
-                    "ip_address": event.ip_address,
-                }
-            )
+        if latest_snapshot:
+            last_scan_time = latest_snapshot.timestamp
+            # Allow for some delay/jitter (e.g. 3 missed scans = offline)
+            threshold = datetime.now() - timedelta(seconds=scan_interval * 3)
+            monitor_running = last_scan_time > threshold
 
-        # Latest snapshot
-        latest_snapshot = NetworkSnapshot.query.order_by(NetworkSnapshot.timestamp.desc()).first()
+        # 3. Statistics (Read-Only)
+        stats = {
+            "total_devices": Device.query.count(),
+            "tracked_devices": Device.query.filter_by(track_presence=True).count(),
+            "currently_home": Device.query.filter_by(is_home=True).count(),
+            "randomized_macs": Device.query.filter_by(is_randomized_mac=True).count(),
+            "linked_devices": Device.query.filter(Device.linked_to_device_id.isnot(None)).count(),
+        }
 
-        # Monitor status
-        monitor_running = monitor is not None and monitor.running if monitor else False
+        # 4. Recent Activity
+        recent_events = PresenceEvent.query.order_by(desc(PresenceEvent.timestamp)).limit(10).all()
+
+        events_list = [
+            {
+                "device_name": e.device.name if e.device else "Unknown",
+                "event_type": e.event_type,
+                "timestamp": e.timestamp.isoformat(),
+                "ip_address": e.ip_address,
+            }
+            for e in recent_events
+        ]
 
         return jsonify(
             {
                 "success": True,
                 "system": {
                     "monitor_running": monitor_running,
-                    "scan_interval": monitor.scan_interval if monitor else None,
-                    "scan_count": monitor.scan_count if monitor else 0,
-                    "correlation_threshold": monitor.correlation_threshold if monitor else None,
+                    "scan_interval": scan_interval,
+                    "last_scan": last_scan_time.isoformat() if last_scan_time else None,
+                    "status": "online" if monitor_running else "stalled",
                 },
-                "statistics": {
-                    "total_devices": total_devices,
-                    "tracked_devices": tracked_devices,
-                    "currently_home": currently_home,
-                    "randomized_macs": randomized_macs,
-                    "linked_devices": linked_devices,
-                },
+                "statistics": stats,
                 "latest_snapshot": {
                     "timestamp": latest_snapshot.timestamp.isoformat(),
                     "device_count": latest_snapshot.device_count,

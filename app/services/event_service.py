@@ -24,16 +24,20 @@ class EventBus:
 
     def emit(self, event_type, data):
         """Publish an event to all connected clients"""
-        # SSE Format: "event: name\ndata: json\n\n"
         msg = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
+        # Use a copy of the list to allow modification during iteration
         for q in self.subscribers[:]:
             try:
+                # If client is slow, we drop the MESSAGE, not the client.
+                # This prevents "zombie" connections.
                 q.put_nowait(msg)
             except queue.Full:
-                # If a client is too slow, we drop them to protect the server
-                self.unsubscribe(q)
+                # OPTIONAL: Log warning here if needed
+                logger.warning("Event bus queue full, dropping message for slow client")
+                pass
             except Exception:
+                # Only unsubscribe on fatal errors (e.g. queue closed)
                 self.unsubscribe(q)
 
 

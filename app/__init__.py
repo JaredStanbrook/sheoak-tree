@@ -1,12 +1,13 @@
-import atexit
 import logging
 import os
 
 from flask import Flask, jsonify, render_template, request
 
 from app.extensions import db, migrate, socketio
-from app.routes.devices import devices_bp
-from app.services.manager import get_services
+from app.services.core import ServiceManager
+from app.services.hardware_manager import HardwareManager
+from app.services.presence_monitor import IntelligentPresenceMonitor
+from app.services.system_monitor import SystemMonitor
 from config import Config
 
 # Configure logging
@@ -29,25 +30,31 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     socketio.init_app(app, path="/sheoak/socket.io")
 
+    # Initialize Service Manager
+    app.service_manager = ServiceManager()
+
     # Initialize Services
     with app.app_context():
-        services = get_services()
+        # 1. System Monitor
+        app.service_manager.register(SystemMonitor(app))
 
-        # Start System Monitor
-        services.get_system_monitor()
+        # 2. Hardware Manager
+        app.service_manager.register(HardwareManager(app))
 
-        # Start Presence Monitor (Scanning Service)
-        services.get_presence_monitor()
+        # 3. Presence Monitor (Process-based wrapper)
+        # Note: Ensure IntelligentPresenceMonitor inherits BaseService
+        app.service_manager.register(
+            IntelligentPresenceMonitor(
+                app, target_ip=app.config["SNMP_TARGET_IP"], community=app.config["SNMP_COMMUNITY"]
+            )
+        )
 
-    # Register Blueprints
-    from app.routes.api import bp as api_bp
-    from app.routes.hardwares import bp as hardwares_bp
-    from app.routes.main import bp as main_bp
+    from app.routes import api, devices, hardwares, main
 
-    app.register_blueprint(main_bp)
-    app.register_blueprint(api_bp, url_prefix="/api")
-    app.register_blueprint(hardwares_bp, url_prefix="/hardwares")
-    app.register_blueprint(devices_bp)
+    app.register_blueprint(main.bp)
+    app.register_blueprint(api.bp, url_prefix="/api")
+    app.register_blueprint(hardwares.bp, url_prefix="/hardwares")
+    app.register_blueprint(devices.devices_bp)
 
     # Global Error Handlers
     register_error_handlers(app)
