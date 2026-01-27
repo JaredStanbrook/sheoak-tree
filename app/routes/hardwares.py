@@ -2,6 +2,7 @@ from flask import (
     Blueprint,
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -168,3 +169,25 @@ def delete_hardware(hardware_id):
         flash("Hardware not found.", "error")
 
     return redirect(url_for("hardwares.manage_hardwares"))
+
+
+@bp.route("/<int:hardware_id>/toggle", methods=["POST"])
+def toggle_hardware(hardware_id):
+    """Toggle a relay or output device."""
+    hw_manager = current_app.service_manager.get_service("HardwareManager")
+
+    if not hw_manager:
+        return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
+
+    success, result = hw_manager.toggle_hardware(hardware_id)
+
+    if success:
+        # Get the updated hardware state
+        strategy = hw_manager.strategies.get(hardware_id)
+        if strategy:
+            snapshot = strategy.get_snapshot()
+            return jsonify({"success": True, "hardware": snapshot})
+
+        return jsonify({"success": True, "state": result})
+
+    return jsonify({"success": False, "error": result}), 400

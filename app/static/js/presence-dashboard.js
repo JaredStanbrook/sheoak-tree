@@ -95,7 +95,7 @@ class PresenceDashboard {
       text.textContent = "Auto-refresh ON";
       this.startAutoRefresh();
     } else {
-      btn.className = "btn btn-sm btn-secondary";
+      btn.className = "btn btn-sm btn-primary";
       text.textContent = "Auto-refresh OFF";
       this.stopAutoRefresh();
     }
@@ -367,7 +367,7 @@ class PresenceDashboard {
         <td class="text-muted">${this.formatTimestamp(device.last_seen)}</td>
         <td class="text-right">
           <button 
-            class="btn btn-sm ${device.track_presence ? "btn-primary" : "btn-secondary"}"
+            class="btn btn-sm ${device.track_presence ? "btn-primary" : "btn-primary"}"
             onclick="event.stopPropagation(); window.presenceDashboard.toggleTracking(${
               device.id
             }, ${device.track_presence})"
@@ -511,7 +511,7 @@ class PresenceDashboard {
       btn.className = "btn btn-primary btn-block";
     } else {
       btn.textContent = "Enable Tracking";
-      btn.className = "btn btn-secondary btn-block";
+      btn.className = "btn btn-primary btn-block";
     }
   }
 
