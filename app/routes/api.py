@@ -1,8 +1,6 @@
 from datetime import datetime
 
-from flask import Blueprint, current_app, jsonify, request
-
-from app.services.manager import get_services
+from flask import Blueprint, current_app, jsonify
 
 bp = Blueprint("api", __name__)
 logger = current_app.logger if current_app else None
@@ -65,7 +63,7 @@ def get_hardwares():
 @bp.route("/activity/<int:hours>")
 def api_activity(hours):
     """Get raw event logs."""
-    hardware = get_services().get_hardware_manager()
+    hardware = current_app.service_manager.get_service("HardwareManager")
     if not hardware:
         return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
 
@@ -82,7 +80,7 @@ def api_activity(hours):
 @bp.route("/frequency/<int:hours>/<int:interval>")
 def api_frequency(hours, interval):
     """Get aggregated frequency data for graphs."""
-    hardware = get_services().get_hardware_manager()
+    hardware = current_app.service_manager.get_service("HardwareManager")
     if not hardware:
         return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
 
@@ -102,7 +100,7 @@ def api_frequency(hours, interval):
 @bp.route("/hardwares/<int:hardware_id>/toggle", methods=["POST"])
 def toggle_hardware(hardware_id):
     """Toggle a relay or output device."""
-    hardware = get_services().get_hardware_manager()
+    hardware = current_app.service_manager.get_service("HardwareManager")
     if not hardware:
         return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
 
@@ -121,10 +119,43 @@ def toggle_hardware(hardware_id):
         return jsonify({"success": False, "error": result}), 400
 
 
+@bp.route("/health", methods=["GET"])
+def health_check():
+    """
+    Returns the health status of all registered services.
+    """
+    service_manager = current_app.service_manager
+
+    # Get health data from all services
+    health_data = service_manager.health_check()
+
+    # Calculate summary statistics
+    total = len(health_data)
+    running = sum(1 for svc in health_data.values() if svc.get("running", False))
+    stopped = total - running
+
+    # Determine overall status
+    if running == total:
+        status = "healthy"
+    elif running > 0:
+        status = "degraded"
+    else:
+        status = "unhealthy"
+
+    return jsonify(
+        {
+            "status": status,
+            "timestamp": datetime.now().isoformat(),
+            "services": health_data,
+            "summary": {"total": total, "running": running, "stopped": stopped},
+        }
+    )
+
+
 # ================================
 # SEQUENCE PROCESSING ROUTES
 # ================================
-
+"""
 
 @bp.route("/sequences/process", methods=["POST"])
 def process_sequences():
@@ -219,32 +250,4 @@ def get_label_statistics():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-
-
-@bp.route("/health")
-def health_check():
-    """System Health Check."""
-    hardware = get_services().get_hardware_manager()
-    status = "healthy"
-    services = {}
-
-    # Check Hardware Service
-    if hardware:
-        try:
-            # Simple read to ensure lock isn't stuck
-            hardware.get_hardware_data()
-            services["hardware_system"] = "operational"
-        except Exception as e:
-            services["hardware_system"] = f"error: {str(e)}"
-            status = "degraded"
-    else:
-        services["hardware_system"] = "not_initialized"
-        status = "degraded"
-
-    return jsonify(
-        {
-            "status": status,
-            "timestamp": datetime.now().isoformat(),
-            "services": services,
-        }
-    ), (200 if status == "healthy" else 503)
+"""

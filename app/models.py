@@ -80,6 +80,7 @@ class Event(db.Model):
         return {
             "id": self.id,
             "hardware_name": self.hardware.name if self.hardware else "Unknown",
+            "type": self.hardware.type if self.hardware else "unknown",
             "value": self.value,
             "unit": self.unit,
             "timestamp": self.timestamp.isoformat(),

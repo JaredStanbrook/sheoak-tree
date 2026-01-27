@@ -225,9 +225,8 @@ class PresenceDashboard {
     }
 
     // Devices home
-    document.getElementById(
-      "devicesHomeCount"
-    ).textContent = `${stats.currently_home} / ${stats.total_devices}`;
+    document.getElementById("devicesHomeCount").textContent =
+      `${stats.currently_home} / ${stats.total_devices}`;
 
     // Tracked devices
     document.getElementById("trackedCount").textContent = stats.tracked_devices;
@@ -276,7 +275,7 @@ class PresenceDashboard {
         </div>
         <div class="log-time">${this.formatTimestamp(device.last_seen)}</div>
       </div>
-    `
+    `,
       )
       .join("");
   }
@@ -310,7 +309,7 @@ class PresenceDashboard {
           </span>
         </div>
       </div>
-    `
+    `,
       )
       .join("");
   }
@@ -342,7 +341,7 @@ class PresenceDashboard {
             <i class="${this.getDeviceIcon(device)}"></i>
             <div>
               <div class="hardware-name" style="font-size: 0.9rem;">${this.escapeHtml(
-                device.name
+                device.name,
               )}</div>
               ${
                 device.owner
@@ -377,7 +376,7 @@ class PresenceDashboard {
           </button>
         </td>
       </tr>
-    `
+    `,
       )
       .join("");
   }
@@ -406,7 +405,7 @@ class PresenceDashboard {
         </div>
         <div class="log-time">${this.formatTimestamp(event.timestamp)}</div>
       </div>
-    `
+    `,
       )
       .join("");
   }
@@ -429,12 +428,12 @@ class PresenceDashboard {
 
     // Status
     document.getElementById("modalStatus").textContent = this.selectedDevice.is_home
-      ? "🟢 Home"
-      : "⚪ Away";
+      ? "Home"
+      : "Away";
 
     // Last seen
     document.getElementById("modalLastSeen").textContent = this.formatTimestamp(
-      this.selectedDevice.last_seen
+      this.selectedDevice.last_seen,
     );
 
     // MAC
@@ -485,10 +484,10 @@ class PresenceDashboard {
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-subtle);">
           <code class="text-mono">${linked.mac}</code>
           <span class="text-muted text-xs">${(linked.confidence * 100).toFixed(
-            0
+            0,
           )}% confidence</span>
         </div>
-      `
+      `,
         )
         .join("");
 

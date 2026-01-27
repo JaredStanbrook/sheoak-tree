@@ -67,7 +67,7 @@ class HardwareManager(ThreadedService):
         Thread-safe hot reload of hardware configuration.
         Call this explicitly after DB changes.
         """
-        logger.info("♻️ Reloading hardware configuration...")
+        logger.info("Reloading hardware configuration...")
 
         with self.app.app_context():
             # 1. Fetch enabled hardware definitions
@@ -138,9 +138,10 @@ class HardwareManager(ThreadedService):
         # Simple string representation of relevant fields
         fingerprint = {
             "driver": hw_model.driver_interface,
-            "pin": hw_model.configuration.get("pin"),
             "type": hw_model.type,
-            # Add other critical config fields here
+            "name": hw_model.name,
+            "enabled": hw_model.enabled,
+            "config": hw_model.configuration,
         }
         return json.dumps(fingerprint, sort_keys=True)
 

@@ -122,9 +122,9 @@ def edit_hardware(hardware_id):
 
                 db.session.commit()
 
-                hw_manager = current_app.service_manager.get_service("HardwareManager")
-                if hw_manager:
-                    hw_manager.reload_config()
+                hardware = current_app.service_manager.get_service("HardwareManager")
+                if hardware:
+                    hardware.reload_config()
                     flash(f'Hardware "{hardware.name}" updated and live.', "success")
                 else:
                     flash("Saved, but Hardware Service is not running.", "warning")
