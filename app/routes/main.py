@@ -14,7 +14,6 @@ from flask import (
 )
 
 from app.services.event_service import bus
-from app.services.manager import get_services
 
 bp = Blueprint("main", __name__)
 logger = current_app.logger if current_app else None
@@ -23,7 +22,7 @@ logger = current_app.logger if current_app else None
 def require_hardware_manager(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not get_services().get_hardware_manager():
+        if not current_app.service_manager.get_service("HardwareManager"):
             return jsonify({"error": "Motion hardware service not available"}), 503
         return f(*args, **kwargs)
 
@@ -71,10 +70,10 @@ def serve_pdf(filename):
 @bp.route("/download/activity")
 @require_hardware_manager
 def download_activity():
-    app_svc = get_services().get_hardware_manager()
-    if os.path.exists(app_svc.log_file):
+    hardware = current_app.service_manager.get_service("HardwareManager")
+    if os.path.exists(hardware.log_file):
         filename = f"hardware_activity_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        return send_file(app_svc.log_file, as_attachment=True, download_name=filename)
+        return send_file(hardware.log_file, as_attachment=True, download_name=filename)
     return jsonify({"error": "Activity log file not found"}), 404
 
 

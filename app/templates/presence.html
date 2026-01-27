@@ -80,22 +80,6 @@ content %}
   <!-- Who's Home Tab -->
   <div id="homeTab" class="tab-pane active">
     <div class="layout-grid">
-      <!-- Currently Home -->
-      <div class="card">
-        <div class="hardware-header">
-          <div class="hardware-icon">
-            <i data-lucide="wifi"></i>
-          </div>
-          <div>
-            <div class="hardware-name">Currently Home</div>
-            <div class="hardware-meta"><span id="homeDeviceCount">0</span> devices</div>
-          </div>
-        </div>
-        <div id="homeDevicesList" class="mt-4">
-          <p class="text-muted text-center">No devices currently home</p>
-        </div>
-      </div>
-
       <!-- Currently Away -->
       <div class="card">
         <div class="hardware-header">
@@ -109,6 +93,21 @@ content %}
         </div>
         <div id="awayDevicesList" class="mt-4">
           <p class="text-muted text-center">Everyone is home!</p>
+        </div>
+      </div>
+      <!-- Currently Home -->
+      <div class="card">
+        <div class="hardware-header">
+          <div class="hardware-icon">
+            <i data-lucide="wifi"></i>
+          </div>
+          <div>
+            <div class="hardware-name">Currently Home</div>
+            <div class="hardware-meta"><span id="homeDeviceCount">0</span> devices</div>
+          </div>
+        </div>
+        <div id="homeDevicesList" class="mt-4">
+          <p class="text-muted text-center">No devices currently home</p>
         </div>
       </div>
     </div>
