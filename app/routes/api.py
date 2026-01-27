@@ -97,28 +97,6 @@ def api_frequency(hours, interval):
     )
 
 
-@bp.route("/hardwares/<int:hardware_id>/toggle", methods=["POST"])
-def toggle_hardware(hardware_id):
-    """Toggle a relay or output device."""
-    hardware = current_app.service_manager.get_service("HardwareManager")
-    if not hardware:
-        return jsonify({"success": False, "error": "Hardware service unavailable"}), 503
-
-    # The hardware manager handles the specifics of the toggle
-    success, result = hardware.toggle_hardware(hardware_id)
-
-    if success:
-        return jsonify(
-            {
-                "success": True,
-                "new_state": result,  # True = On, False = Off
-                "message": "Device toggled successfully",
-            }
-        )
-    else:
-        return jsonify({"success": False, "error": result}), 400
-
-
 @bp.route("/health", methods=["GET"])
 def health_check():
     """

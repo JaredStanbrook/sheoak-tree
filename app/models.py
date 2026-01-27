@@ -5,8 +5,11 @@ from app.extensions import db
 HARDWARE_INTERFACES = {
     "gpio_binary": "Binary Sensor",
     "gpio_relay": "Relay Switch",
-    "dht_22": "DHT22",
-    "i2c_generic": "I2C",
+    "dht_22": "DHT22 Temp/Humidity",
+    "i2c_generic": "I2C Environmental",
+    "microphone": "Microphone",
+    "speaker": "Speaker/PTT",
+    "camera": "Camera",
 }
 HARDWARE_TYPES = [
     "camera",
@@ -17,6 +20,10 @@ HARDWARE_TYPES = [
     "display",
     "contact_sensor",
     "system_status",
+    "temperature_sensor",  # NEW
+    "humidity_sensor",  # NEW
+    "microphone",  # NEW
+    "speaker",  # NEW
 ]
 
 

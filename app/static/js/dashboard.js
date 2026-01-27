@@ -79,7 +79,7 @@ class CardRenderer {
 
 class RelayCardRenderer extends CardRenderer {
   getFooter() {
-    const btnClass = this.props.isActive ? "btn-primary" : "btn-secondary";
+    const btnClass = this.props.isActive ? "btn-primary" : "btn-primary";
     const btnText = this.props.isActive ? "Turn Off" : "Turn On";
 
     return `
@@ -166,7 +166,7 @@ class AudioCardRenderer extends CardRenderer {
 
     // For PTT speakers, show action button
     return `
-      <button class="btn btn-sm btn-block btn-secondary js-action-speak" 
+      <button class="btn btn-sm btn-block btn-primary js-action-speak" 
               data-id="${this.hw.hardware_id}">
         <i data-lucide="mic"></i> Push to Talk
       </button>
@@ -197,11 +197,11 @@ class CameraCardRenderer extends CardRenderer {
   getFooter() {
     return `
       <div class="hardware-footer-camera">
-        <button class="btn btn-sm btn-secondary js-action-view-feed" 
+        <button class="btn btn-sm btn-primary js-action-view-feed" 
                 data-id="${this.hw.hardware_id}">
           <i data-lucide="video"></i> View Live
         </button>
-        <button class="btn btn-sm btn-secondary js-action-capture" 
+        <button class="btn btn-sm btn-primary js-action-capture" 
                 data-id="${this.hw.hardware_id}">
           <i data-lucide="camera"></i> Capture
         </button>
@@ -447,8 +447,26 @@ class DashboardController {
     btn.disabled = true;
 
     try {
-      const res = await fetch(`/api/hardwares/${id}/toggle`, { method: "POST" });
+      const res = await fetch(`/hardwares/${id}/toggle`, { method: "POST" });
       if (!res.ok) throw new Error("Toggle failed");
+
+      // Get the new state from response
+      const data = await res.json();
+
+      // Update state
+      const hw = this.state.get(id);
+      if (hw && data.hardware) {
+        // Merge the updated hardware data
+        hw.value = data.hardware.value;
+        if (data.hardware.ui) {
+          hw.ui = data.hardware.ui;
+        }
+        hw.lastActivity = new Date();
+
+        // Re-render
+        this.renderCard(hw);
+        this.refreshSummary();
+      }
     } catch (err) {
       console.error("Toggle Error:", err);
       alert("Failed to toggle device");
@@ -541,7 +559,7 @@ class DashboardController {
       if (data.count > knownCount) {
         const diff = data.count - knownCount;
         const chip = document.createElement("button");
-        chip.className = "btn btn-sm btn-secondary";
+        chip.className = "btn btn-sm btn-primary";
         chip.addEventListener("click", () => (window.location.href = "/presence"));
         chip.textContent = `${diff} Unknown Device(s)`;
         this.elements.widgetList.appendChild(chip);
