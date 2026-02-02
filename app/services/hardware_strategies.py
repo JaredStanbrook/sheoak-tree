@@ -5,6 +5,7 @@ Supports: Binary sensors, Relays, Environmental sensors, Audio, and Cameras
 """
 
 import logging
+import os
 import random
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -92,51 +93,60 @@ HARDWARE_UI_DEFAULTS = {
 # ============================================================
 # GPIO WRAPPER
 # ============================================================
+
+
+class MockGPIO:
+    BCM = "BCM"
+    IN = "IN"
+    OUT = "OUT"
+    HIGH = 1
+    LOW = 0
+    PUD_UP = "PUD_UP"
+    _pin_states = {}
+    _active_pins = []
+
+    @staticmethod
+    def setmode(mode):
+        pass
+
+    @staticmethod
+    def setwarnings(flag):
+        pass
+
+    @staticmethod
+    def cleanup():
+        pass
+
+    @classmethod
+    def setup(cls, pin, mode, pull_up_down=None):
+        if pin not in cls._active_pins:
+            cls._active_pins.append(pin)
+            cls._pin_states[pin] = 0
+
+    @classmethod
+    def input(cls, pin):
+        # Randomly toggle inputs for simulation
+        if pin in cls._active_pins:
+            if random.random() < 0.01:  # 1% chance to toggle
+                cls._pin_states[pin] = 1 if cls._pin_states.get(pin, 0) == 0 else 0
+        return cls._pin_states.get(pin, 0)
+
+    @classmethod
+    def output(cls, pin, state):
+        cls._pin_states[pin] = state
+
+
+gpio_mode = os.environ.get("GPIO_MODE", "mock").lower()
+
 try:
+    if gpio_mode == "mock":
+        raise ImportError("GPIO_MODE=mock")
     import RPi.GPIO as GPIO
-except (ImportError, RuntimeError):
-    logger.warning("RPi.GPIO not found. Using Mock Hardware.")
-
-    class MockGPIO:
-        BCM = "BCM"
-        IN = "IN"
-        OUT = "OUT"
-        HIGH = 1
-        LOW = 0
-        PUD_UP = "PUD_UP"
-        _pin_states = {}
-        _active_pins = []
-
-        @staticmethod
-        def setmode(mode):
-            pass
-
-        @staticmethod
-        def setwarnings(flag):
-            pass
-
-        @staticmethod
-        def cleanup():
-            pass
-
-        @classmethod
-        def setup(cls, pin, mode, pull_up_down=None):
-            if pin not in cls._active_pins:
-                cls._active_pins.append(pin)
-                cls._pin_states[pin] = 0
-
-        @classmethod
-        def input(cls, pin):
-            # Randomly toggle inputs for simulation
-            if pin in cls._active_pins:
-                if random.random() < 0.01:  # 1% chance to toggle
-                    cls._pin_states[pin] = 1 if cls._pin_states.get(pin, 0) == 0 else 0
-            return cls._pin_states.get(pin, 0)
-
-        @classmethod
-        def output(cls, pin, state):
-            cls._pin_states[pin] = state
-
+except (ImportError, RuntimeError) as exc:
+    if gpio_mode == "real":
+        logger.error("GPIO_MODE=real but GPIO init failed: %s", exc)
+    else:
+        logger.warning("RPi.GPIO not available (%s). Using Mock GPIO.", exc)
     GPIO = MockGPIO
 
 

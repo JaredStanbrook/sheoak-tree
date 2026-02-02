@@ -1,243 +1,274 @@
-{% extends "base.html" %} {% block title %}Smart Home Presence Dashboard{% endblock %} {% block
-content %}
+{% extends "base.html" %} {% block title %}Smart Home Presence Dashboard{%
+endblock %} {% block content %}
 
 <div class="card card-header">
-  <div class="nav-brand"><i class="bi bi-house-door"></i> Smart Home Presence</div>
-  <div class="nav-controls">
-    <div class="status-pill">
-      <span class="status-dot connected" id="systemStatusDot"></span>
-      <span id="systemStatusText">Active</span>
+    <div class="nav-brand">
+        <i class="bi bi-house-door"></i> Smart Home Presence
     </div>
-    <button id="autoRefreshBtn" class="btn btn-sm btn-primary">
-      <i class="bi bi-arrow-clockwise"></i>
-      <span id="autoRefreshText">Auto-refresh ON</span>
-    </button>
-  </div>
+    <div class="nav-controls">
+        <div class="status-pill">
+            <span class="status-dot connected" id="systemStatusDot"></span>
+            <span id="systemStatusText">Active</span>
+        </div>
+        <button id="autoRefreshBtn" class="btn btn-sm btn-primary">
+            <i class="bi bi-arrow-clockwise"></i>
+            <span id="autoRefreshText">Auto-refresh ON</span>
+        </button>
+    </div>
 </div>
 
 <!-- Status Cards -->
 <div class="grid-hardwares">
-  <div class="card">
-    <div class="hardware-header">
-      <div class="hardware-icon">
-        <i data-lucide="activity"></i>
-      </div>
-      <div>
-        <div class="hardware-name">System Status</div>
-        <div class="hardware-meta" id="systemStatus">Active</div>
-      </div>
+    <div class="card">
+        <div class="hardware-header">
+            <div class="hardware-icon">
+                <i data-lucide="activity"></i>
+            </div>
+            <div>
+                <div class="hardware-name">System Status</div>
+                <div class="hardware-meta" id="systemStatus">Active</div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <div class="card">
-    <div class="hardware-header">
-      <div class="hardware-icon">
-        <i data-lucide="users"></i>
-      </div>
-      <div>
-        <div class="hardware-name">Devices Home</div>
-        <div class="hardware-meta" id="devicesHomeCount">0 / 0</div>
-      </div>
+    <div class="card">
+        <div class="hardware-header">
+            <div class="hardware-icon">
+                <i data-lucide="users"></i>
+            </div>
+            <div>
+                <div class="hardware-name">Devices Home</div>
+                <div class="hardware-meta" id="devicesHomeCount">0 / 0</div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <div class="card">
-    <div class="hardware-header">
-      <div class="hardware-icon">
-        <i data-lucide="eye"></i>
-      </div>
-      <div>
-        <div class="hardware-name">Tracked Devices</div>
-        <div class="hardware-meta" id="trackedCount">0</div>
-      </div>
+    <div class="card">
+        <div class="hardware-header">
+            <div class="hardware-icon">
+                <i data-lucide="eye"></i>
+            </div>
+            <div>
+                <div class="hardware-name">Tracked Devices</div>
+                <div class="hardware-meta" id="trackedCount">0</div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <div class="card">
-    <div class="hardware-header">
-      <div class="hardware-icon">
-        <i data-lucide="chart-area"></i>
-      </div>
-      <div>
-        <div class="hardware-name">Network Scans</div>
-        <div class="hardware-meta" id="scanCount">0</div>
-      </div>
+    <div class="card">
+        <div class="hardware-header">
+            <div class="hardware-icon">
+                <i data-lucide="chart-area"></i>
+            </div>
+            <div>
+                <div class="hardware-name">Network Scans</div>
+                <div class="hardware-meta" id="scanCount">0</div>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 
 <!-- Tab Navigation -->
 <div class="card">
-  <div class="nav-menu" id="dashboardTabs">
-    <a href="#homeTab" class="nav-item active" data-tab="home">Who's Home</a>
-    <a href="#allTab" class="nav-item" data-tab="all">All Devices</a>
-    <a href="#activityTab" class="nav-item" data-tab="activity">Recent Activity</a>
-  </div>
+    <div class="nav-menu" id="dashboardTabs">
+        <a href="#homeTab" class="nav-item active" data-tab="home"
+            >Who's Home</a
+        >
+        <a href="#allTab" class="nav-item" data-tab="all">All Devices</a>
+        <a href="#activityTab" class="nav-item" data-tab="activity"
+            >Recent Activity</a
+        >
+    </div>
 </div>
 
 <!-- Tab Content -->
 <div id="tabContent">
-  <!-- Who's Home Tab -->
-  <div id="homeTab" class="tab-pane active">
-    <div class="layout-grid">
-      <!-- Currently Away -->
-      <div class="card">
-        <div class="hardware-header">
-          <div class="hardware-icon">
-            <i data-lucide="wifi-off"></i>
-          </div>
-          <div>
-            <div class="hardware-name">Away</div>
-            <div class="hardware-meta"><span id="awayDeviceCount">0</span> devices</div>
-          </div>
+    <!-- Who's Home Tab -->
+    <div id="homeTab" class="tab-pane active">
+        <div class="layout-grid">
+            <!-- Currently Away -->
+            <div class="card">
+                <div class="hardware-header">
+                    <div class="hardware-icon">
+                        <i data-lucide="wifi-off"></i>
+                    </div>
+                    <div>
+                        <div class="hardware-name">Away</div>
+                        <div class="hardware-meta">
+                            <span id="awayDeviceCount">0</span> devices
+                        </div>
+                    </div>
+                </div>
+                <div id="awayDevicesList" class="mt-4">
+                    <p class="text-muted text-center">Everyone is home!</p>
+                </div>
+            </div>
+            <!-- Currently Home -->
+            <div class="card">
+                <div class="hardware-header">
+                    <div class="hardware-icon">
+                        <i data-lucide="wifi"></i>
+                    </div>
+                    <div>
+                        <div class="hardware-name">Currently Home</div>
+                        <div class="hardware-meta">
+                            <span id="homeDeviceCount">0</span> devices
+                        </div>
+                    </div>
+                </div>
+                <div id="homeDevicesList" class="mt-4">
+                    <p class="text-muted text-center">
+                        No devices currently home
+                    </p>
+                </div>
+            </div>
         </div>
-        <div id="awayDevicesList" class="mt-4">
-          <p class="text-muted text-center">Everyone is home!</p>
-        </div>
-      </div>
-      <!-- Currently Home -->
-      <div class="card">
-        <div class="hardware-header">
-          <div class="hardware-icon">
-            <i data-lucide="wifi"></i>
-          </div>
-          <div>
-            <div class="hardware-name">Currently Home</div>
-            <div class="hardware-meta"><span id="homeDeviceCount">0</span> devices</div>
-          </div>
-        </div>
-        <div id="homeDevicesList" class="mt-4">
-          <p class="text-muted text-center">No devices currently home</p>
-        </div>
-      </div>
     </div>
-  </div>
 
-  <!-- All Devices Tab -->
-  <div id="allTab" class="tab-pane" style="display: none">
-    <div class="card">
-      <div class="card-header">
-        <h2 class="hardware-name">All Devices (<span id="allDeviceCount">0</span>)</h2>
-        <button id="filterTrackedBtn" class="btn btn-sm btn-primary">
-          <i class="bi bi-eye-slash"></i>
-          <span id="filterTrackedText">All Devices</span>
-        </button>
-      </div>
+    <!-- All Devices Tab -->
+    <div id="allTab" class="tab-pane">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="hardware-name">
+                    All Devices (<span id="allDeviceCount">0</span>)
+                </h2>
+                <button id="filterTrackedBtn" class="btn btn-sm btn-primary">
+                    <i class="bi bi-eye-slash"></i>
+                    <span id="filterTrackedText">All Devices</span>
+                </button>
+            </div>
 
-      <div class="table-container">
-        <table class="glass-table">
-          <thead>
-            <tr>
-              <th>Device</th>
-              <th>Status</th>
-              <th>MAC Address</th>
-              <th>IP</th>
-              <th>Last Seen</th>
-              <th class="text-right">Tracking</th>
-            </tr>
-          </thead>
-          <tbody id="allDevicesTable">
-            <tr>
-              <td colspan="6" class="text-center text-muted">Loading devices...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Recent Activity Tab -->
-  <div id="activityTab" class="tab-pane" style="display: none">
-    <div class="card">
-      <div class="hardware-header">
-        <div class="hardware-icon">
-          <i data-lucide="history"></i>
+            <div class="table-container">
+                <table class="glass-table">
+                    <thead>
+                        <tr>
+                            <th>Device</th>
+                            <th>Status</th>
+                            <th>MAC Address</th>
+                            <th>IP</th>
+                            <th>Last Seen</th>
+                            <th class="text-right">Tracking</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allDevicesTable">
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">
+                                Loading devices...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div>
-          <div class="hardware-name">Recent Activity</div>
-          <div class="hardware-meta">Last 24 hours</div>
-        </div>
-      </div>
-
-      <div class="log-list mt-4" id="activityList">
-        <p class="text-muted text-center">No recent activity</p>
-      </div>
     </div>
-  </div>
+
+    <!-- Recent Activity Tab -->
+    <div id="activityTab" class="tab-pane">
+        <div class="card">
+            <div class="hardware-header">
+                <div class="hardware-icon">
+                    <i data-lucide="history"></i>
+                </div>
+                <div>
+                    <div class="hardware-name">Recent Activity</div>
+                    <div class="hardware-meta">Last 24 hours</div>
+                </div>
+            </div>
+
+            <div class="log-list mt-4" id="activityList">
+                <p class="text-muted text-center">No recent activity</p>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Device Detail Modal -->
 <div class="modal-overlay" id="deviceDetailModal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <div>
-        <h3 class="hardware-name" id="modalDeviceName"></h3>
-        <p class="text-muted" id="modalDeviceOwner"></p>
-      </div>
-      <button type="button" class="btn-close" onclick="window.presenceDashboard.closeModal()">
-        &times;
-      </button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label class="form-label">Status</label>
-        <p class="hardware-meta" id="modalStatus"></p>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Last Seen</label>
-        <p class="hardware-meta" id="modalLastSeen"></p>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">MAC Address</label>
-        <code class="text-mono" id="modalMac"></code>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">IP Address</label>
-        <p class="hardware-meta" id="modalIp"></p>
-      </div>
-
-      <div id="modalHostname" class="form-group" style="display: none">
-        <label class="form-label">Hostname</label>
-        <p class="hardware-meta" id="modalHostnameValue"></p>
-      </div>
-
-      <div id="modalVendor" class="form-group" style="display: none">
-        <label class="form-label">Vendor</label>
-        <p class="hardware-meta" id="modalVendorValue"></p>
-      </div>
-
-      <div id="modalRandomMacWarning" class="status-card-danger" style="display: none">
-        <i class="bi bi-shield-check"></i>
-        <div>
-          <strong>Randomized MAC Address</strong>
-          <p class="text-xs" id="modalRandomMacText"></p>
+    <div class="modal-content">
+        <div class="modal-header">
+            <div>
+                <h3 class="hardware-name" id="modalDeviceName"></h3>
+                <p class="text-muted" id="modalDeviceOwner"></p>
+            </div>
+            <button
+                type="button"
+                class="btn-close"
+                onclick="window.presenceDashboard.closeModal()"
+            >
+                &times;
+            </button>
         </div>
-      </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <p class="hardware-meta" id="modalStatus"></p>
+            </div>
 
-      <div id="modalLinkedMacs" class="form-group" style="display: none">
-        <label class="form-label">
-          <i class="bi bi-link-45deg"></i>
-          Linked Random MACs (<span id="linkedMacCount">0</span>)
-        </label>
-        <div id="linkedMacsList"></div>
-      </div>
+            <div class="form-group">
+                <label class="form-label">Last Seen</label>
+                <p class="hardware-meta" id="modalLastSeen"></p>
+            </div>
 
-      <div class="form-group" style="display: flex; gap: 8px">
-        <button type="button" id="modalToggleTracking" class="btn btn-primary btn-block"></button>
-        <button
-          type="button"
-          class="btn btn-primary"
-          onclick="window.presenceDashboard.closeModal()">
-          Close
-        </button>
-      </div>
+            <div class="form-group">
+                <label class="form-label">MAC Address</label>
+                <code class="text-mono" id="modalMac"></code>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">IP Address</label>
+                <p class="hardware-meta" id="modalIp"></p>
+            </div>
+
+            <div id="modalHostname" class="form-group is-hidden">
+                <label class="form-label">Hostname</label>
+                <p class="hardware-meta" id="modalHostnameValue"></p>
+            </div>
+
+            <div id="modalVendor" class="form-group is-hidden">
+                <label class="form-label">Vendor</label>
+                <p class="hardware-meta" id="modalVendorValue"></p>
+            </div>
+
+            <div
+                id="modalRandomMacWarning"
+                class="status-card-danger is-hidden"
+            >
+                <i class="bi bi-shield-check"></i>
+                <div>
+                    <strong>Randomized MAC Address</strong>
+                    <p class="text-xs" id="modalRandomMacText"></p>
+                </div>
+            </div>
+
+            <div id="modalLinkedMacs" class="form-group is-hidden">
+                <label class="form-label">
+                    <i class="bi bi-link-45deg"></i>
+                    Linked Random MACs (<span id="linkedMacCount">0</span>)
+                </label>
+                <div id="linkedMacsList"></div>
+            </div>
+
+            <div class="form-group form-row">
+                <button
+                    type="button"
+                    id="modalToggleTracking"
+                    class="btn btn-primary btn-block"
+                ></button>
+                <button
+                    type="button"
+                    class="btn btn-primary"
+                    onclick="window.presenceDashboard.closeModal()"
+                >
+                    Close
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 {% endblock %} {% block scripts %}
-<script src="{{ url_for('static', filename='js/presence-dashboard.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/core.js') }}"></script>
+<script src="{{ url_for('static', filename='js/presence.js') }}"></script>
+<script
+    type="module"
+    src="{{ url_for('static', filename='js/core.js') }}"
+></script>
 {% endblock %}

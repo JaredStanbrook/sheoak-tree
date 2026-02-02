@@ -75,7 +75,12 @@ def manage_hardwares():
                 )
                 db.session.add(new_hw)
                 db.session.commit()
-                flash(f'Hardware "{name}" added successfully.', "success")
+                manager = current_app.service_manager.get_service("HardwareManager")
+                if manager:
+                    manager.reload_config()
+                    flash(f'Hardware "{name}" added and live.', "success")
+                else:
+                    flash(f'Hardware "{name}" added (service offline).', "warning")
                 return redirect(url_for("hardwares.manage_hardwares"))
             except Exception as e:
                 db.session.rollback()
@@ -123,9 +128,9 @@ def edit_hardware(hardware_id):
 
                 db.session.commit()
 
-                hardware = current_app.service_manager.get_service("HardwareManager")
-                if hardware:
-                    hardware.reload_config()
+                manager = current_app.service_manager.get_service("HardwareManager")
+                if manager:
+                    manager.reload_config()
                     flash(f'Hardware "{hardware.name}" updated and live.', "success")
                 else:
                     flash("Saved, but Hardware Service is not running.", "warning")
@@ -161,6 +166,9 @@ def delete_hardware(hardware_id):
         try:
             db.session.delete(hardware)
             db.session.commit()
+            manager = current_app.service_manager.get_service("HardwareManager")
+            if manager:
+                manager.reload_config()
             flash(f'Deleted "{name}".', "success")
         except Exception as e:
             db.session.rollback()

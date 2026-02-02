@@ -20,21 +20,14 @@
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap"
       rel="stylesheet" />
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      window.SHEOAK_CONFIG = {{ sheoak_config | tojson }};
+    </script>
     {% block head_scripts %}{% endblock %}
   </head>
   <body>
-    <div id="flash-container">
-      {% with messages = get_flashed_messages(with_categories=true) %} {% if messages %} {% for
-      category, message in messages %}
-      <div
-        class="card"
-        style="background: var(--color-{{ 'primary' if category=='success' else 'danger' }}-bg); border-color: var(--color-{{ 'primary' if category=='success' else 'danger' }}); color: var(--color-{{ 'primary' if category=='success' else 'danger' }}); margin-bottom: 20px; padding: 12px 20px;">
-        {{ message }}
-      </div>
-      {% endfor %} {% endif %} {% endwith %}
-    </div>
-
     <nav class="card">
       <div class="card-header">
         <div class="nav-brand">Sheoak Control</div>
@@ -113,7 +106,17 @@
       </div>
     </div>
 
-    <main>{% block content %}{% endblock %}</main>
+    <main>
+      <div id="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %} {% if messages %} {% for
+        category, message in messages %}
+        <div class="alert alert-{{ 'success' if category=='success' else 'danger' }} mb-3">
+          {{ message }}
+        </div>
+        {% endfor %} {% endif %} {% endwith %}
+      </div>
+      {% block content %}{% endblock %}
+    </main>
     <footer>
       <p>© 2025 Sheoak hardwares | <span id="system-time"></span></p>
     </footer>

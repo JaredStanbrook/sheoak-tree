@@ -10,9 +10,10 @@ from datetime import datetime, timedelta
 
 from app.extensions import db
 from app.models import Event, Hardware
+from app.services import hardware_strategies
 from app.services.core import ThreadedService
 from app.services.event_service import bus
-from app.services.hardware_strategies import GPIO, HardwareFactory
+from app.services.hardware_strategies import GPIO, HardwareFactory, MockGPIO
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +30,18 @@ class HardwareManager(ThreadedService):
 
         # Global GPIO Setup (done once)
         try:
+            GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BCM)
+            if GPIO is MockGPIO:
+                logger.info("GPIO running in mock mode.")
         except Exception as e:
-            logger.error(f"GPIO Global Setup Failed: {e}")
+            logger.error(
+                "GPIO Global Setup Failed: %s. Falling back to MockGPIO. "
+                "Set GPIO_MODE=mock or run with appropriate permissions.",
+                e,
+            )
+            hardware_strategies.GPIO = MockGPIO
+            globals()["GPIO"] = MockGPIO
 
     def start(self):
         """Initial startup: Load config and start thread."""

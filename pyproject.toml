@@ -3,7 +3,7 @@ line-length = 100
 target-version = "py38"
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I"]
+select = ["E", "F", "I", "B"]
 ignore = ["E501"] # Allow long lines (let formatter handle it)
 
 [tool.ruff.lint.isort]
@@ -13,3 +13,16 @@ known-first-party = ["app", "config"]
 testpaths = ["tests"]
 python_files = ["*_test.py", "test_*.py"]
 addopts = "-v"
+
+[tool.black]
+line-length = 100
+target-version = ["py38"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+ignore_missing_imports = true
+check_untyped_defs = false
+strict_optional = false

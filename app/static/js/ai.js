@@ -90,12 +90,12 @@ class SequenceController {
         (seq) => `
             <div class="sequence-item" onclick="window.ai.openModal(${seq.sequence_id})">
                 <div class="sequence-header">
-                    <span class="mono">ID: ${seq.sequence_id}</span>
+                    <span class="text-mono">ID: ${seq.sequence_id}</span>
                     <span class="sequence-label ${seq.label ? "labeled" : "unlabeled"}">${
           seq.label || "Unlabeled"
         }</span>
                 </div>
-                <div class="sequence-meta" style="font-size:0.85rem; opacity:0.7;">
+                <div class="sequence-meta">
                     ${Utils.formatDate(seq.start_time)} • ${seq.duration_minutes.toFixed(1)} mins
                 </div>
             </div>
@@ -107,10 +107,12 @@ class SequenceController {
   updatePagination(pg) {
     const pag = this.elements.pagination;
     if (pg.total_pages <= 1) {
-      pag.style.display = "none";
+      pag.classList.add("is-hidden");
+      pag.classList.remove("is-flex");
       return;
     }
-    pag.style.display = "flex";
+    pag.classList.remove("is-hidden");
+    pag.classList.add("is-flex");
     document.getElementById("pageInfo").textContent = `Page ${pg.page} of ${pg.total_pages}`;
     document.getElementById("prevBtn").disabled = !pg.has_prev;
     document.getElementById("nextBtn").disabled = !pg.has_next;
@@ -169,7 +171,7 @@ class SequenceController {
                   .map(
                     (e) => `
                     <div class="event-item-small">
-                        <span class="mono">${e.timestamp.split("T")[1].split(".")[0]}</span>
+                        <span class="text-mono">${e.timestamp.split("T")[1].split(".")[0]}</span>
                         <strong>${e.hardware_name}</strong>: ${e.event}
                     </div>`
                   )

@@ -1,0 +1,14 @@
+[Unit]
+Description=Sheoak Tree Smart Monitor
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sheoak-tree
+EnvironmentFile=/opt/sheoak-tree/.env
+ExecStart=/opt/sheoak-tree/venv/bin/gunicorn -c /opt/sheoak-tree/gunicorn.conf.py wsgi:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

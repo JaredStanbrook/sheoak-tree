@@ -71,8 +71,6 @@ class SequenceLabelingHelper:
 
         # Count specific events
         door_events = sum(1 for e in sequence["raw_events"] if "Door" in e.get("event", ""))
-        motion_events = sum(1 for e in sequence["raw_events"] if "Motion" in e.get("event", ""))
-
         first_event = sequence["raw_events"][0]["hardware_name"]
         last_event = sequence["raw_events"][-1]["hardware_name"]
 
@@ -351,18 +349,12 @@ class SequenceLabelingHelper:
         if "metadata" not in self.data:
             self.data["metadata"] = {}
 
-        import os
         from datetime import datetime
 
         self.data["metadata"]["last_labeled_at"] = datetime.now().isoformat()
 
         labeled_count = sum(1 for s in self.sequences if s.get("label") and s["label"].strip())
         self.data["metadata"]["labeled_sequences"] = labeled_count
-
-        # Create backup with auto_ prefix
-        base_name = os.path.basename(self.json_path)
-        dir_name = os.path.dirname(self.json_path)
-        new_path = os.path.join(dir_name, f"auto_{base_name}")
 
         with open(self.json_path, "w") as f:
             json.dump(self.data, f, indent=2)

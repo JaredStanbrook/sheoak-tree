@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 import sys
 from unittest.mock import MagicMock
 
@@ -18,15 +20,11 @@ sys.modules["RPi.GPIO"] = mock_gpio
 
 # --- 2. App & DB Fixtures ---
 from app import create_app, db
-from config import Config
+from app.config import TestingConfig
 
 
-class TestConfig(Config):
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+class TestConfig(TestingConfig):
     WTF_CSRF_ENABLED = False
-    # Disable background threads for tests
-    PRESENCE_SCAN_INTERVAL = 0
 
 
 @pytest.fixture

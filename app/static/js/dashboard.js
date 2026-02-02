@@ -31,7 +31,9 @@ class CardRenderer {
       statusText: ui.text,
       statusClass: ui.color,
       iconName: ui.icon,
-      timeAgo: this.hw.lastActivity ? Utils.timeAgo(this.hw.lastActivity) : "Never",
+      timeAgo: this.hw.lastActivity
+        ? Utils.timeAgo(this.hw.lastActivity)
+        : "Never",
       cardActiveClass: ui.active ? "is-active" : "",
       isActive: ui.active,
       value: this.hw.value,
@@ -83,7 +85,7 @@ class RelayCardRenderer extends CardRenderer {
     const btnText = this.props.isActive ? "Turn Off" : "Turn On";
 
     return `
-      <button class="btn btn-sm btn-block ${btnClass} js-action-toggle" 
+      <button class="btn btn-sm btn-block ${btnClass} js-action-toggle"
               data-id="${this.hw.hardware_id}">
         ${btnText}
       </button>
@@ -166,7 +168,7 @@ class AudioCardRenderer extends CardRenderer {
 
     // For PTT speakers, show action button
     return `
-      <button class="btn btn-sm btn-block btn-primary js-action-speak" 
+      <button class="btn btn-sm btn-block btn-primary js-action-speak"
               data-id="${this.hw.hardware_id}">
         <i data-lucide="mic"></i> Push to Talk
       </button>
@@ -182,7 +184,7 @@ class CameraCardRenderer extends CardRenderer {
     return `
       <div class="hardware-header hardware-header-camera">
         <div class="camera-preview" id="camera-preview-${this.hw.hardware_id}">
-          <img src="/api/cameras/${this.hw.hardware_id}/snapshot" 
+          <img src="/api/cameras/${this.hw.hardware_id}/snapshot"
                alt="${Utils.escape(this.hw.name)}"
                onerror="this.src='/static/img/camera-offline.png'">
         </div>
@@ -197,11 +199,11 @@ class CameraCardRenderer extends CardRenderer {
   getFooter() {
     return `
       <div class="hardware-footer-camera">
-        <button class="btn btn-sm btn-primary js-action-view-feed" 
+        <button class="btn btn-sm btn-primary js-action-view-feed"
                 data-id="${this.hw.hardware_id}">
           <i data-lucide="video"></i> View Live
         </button>
-        <button class="btn btn-sm btn-primary js-action-capture" 
+        <button class="btn btn-sm btn-primary js-action-capture"
                 data-id="${this.hw.hardware_id}">
           <i data-lucide="camera"></i> Capture
         </button>
@@ -404,7 +406,18 @@ class DashboardController {
     let activeCount = 0;
     this.state.forEach((hw) => {
       const isActive = hw.ui ? hw.ui.active : Boolean(hw.value);
-      if (isActive && hw.type !== "relay") {
+      const blocked = [
+        "camera",
+        "doorbell",
+        "thermostat",
+        "relay",
+        "display",
+        "system_status",
+        "temperature_sensor",
+        "humidity_sensor",
+        "speaker",
+      ];
+      if (isActive && !blocked.includes(hw.type)) {
         activeCount++;
       }
     });
@@ -560,7 +573,10 @@ class DashboardController {
         const diff = data.count - knownCount;
         const chip = document.createElement("button");
         chip.className = "btn btn-sm btn-primary";
-        chip.addEventListener("click", () => (window.location.href = "/presence"));
+        chip.addEventListener(
+          "click",
+          () => (window.location.href = "/presence"),
+        );
         chip.textContent = `${diff} Unknown Device(s)`;
         this.elements.widgetList.appendChild(chip);
       }

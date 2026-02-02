@@ -626,7 +626,6 @@ class hardwaresequenceProcessor:
 
         # Update in MongoDB
         config_key = self._get_config_key()
-        seq = self.sequences[sequence_id - 1]
         self.sequences_collection.update_one(
             {"config_key": config_key, "sequence_id": sequence_id}, {"$set": {"label": label}}
         )

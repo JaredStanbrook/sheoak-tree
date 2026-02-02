@@ -2,10 +2,17 @@
  * static/js/core.js
  * Shared utilities
  */
+const runtimeConfig = window.SHEOAK_CONFIG || {};
+
 export const CONFIG = {
   maxLogEntries: 50,
-  timeZone: "Australia/Perth",
-  locale: "en-AU",
+  timeZone: runtimeConfig.timezone || "Australia/Perth",
+  locale: runtimeConfig.locale || "en-AU",
+  socketioEnabled:
+    typeof runtimeConfig.socketioEnabled === "boolean"
+      ? runtimeConfig.socketioEnabled
+      : true,
+  socketioPath: runtimeConfig.socketioPath || "/sheoak/socket.io",
 };
 
 export const Utils = {
@@ -64,6 +71,26 @@ export const Utils = {
 };
 
 export const connectStream = () => {
+  if (CONFIG.socketioEnabled && window.io) {
+    const socket = window.io({
+      path: CONFIG.socketioPath,
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("connect", () => updateStatus(true));
+    socket.on("disconnect", () => updateStatus(false));
+
+    socket.on("hardware_event", (data) => {
+      window.dispatchEvent(new CustomEvent("hardware_update", { detail: data }));
+    });
+
+    socket.on("presence_update", (data) => {
+      window.dispatchEvent(new CustomEvent("presence_update", { detail: data }));
+    });
+
+    return;
+  }
+
   const evtSource = new EventSource("/stream");
 
   evtSource.addEventListener("hardware_event", (e) => {

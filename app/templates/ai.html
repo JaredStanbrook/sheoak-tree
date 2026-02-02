@@ -12,7 +12,7 @@
       <input type="number" id="gapThreshold" class="form-input" value="300" />
     </div>
 
-    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 24px">
+    <div class="d-flex flex-column gap-2 mt-4">
       <button class="btn btn-primary btn-block" id="fullBtn" onclick="window.ai.process(false)">
         Rebuild All
       </button>
@@ -21,28 +21,16 @@
       </button>
     </div>
 
-    <div style="margin-top: 32px; padding-top: 20px; border-top: 1px solid rgba(0, 0, 0, 0.05)">
-      <div
-        style="
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 8px;
-          font-size: 0.9rem;
-        ">
+    <div class="mt-4 pt-4 border-top">
+      <div class="d-flex justify-between mb-3 text-sm">
         <span class="text-muted">Total Sequences</span>
         <strong id="totalSequences">0</strong>
       </div>
-      <div
-        style="
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 8px;
-          font-size: 0.9rem;
-        ">
+      <div class="d-flex justify-between mb-3 text-sm">
         <span class="text-muted">Labeled</span>
         <strong id="labeledSequences" class="text-success">0</strong>
       </div>
-      <div style="display: flex; justify-content: space-between; font-size: 0.9rem">
+      <div class="d-flex justify-between text-sm">
         <span class="text-muted">Unlabeled</span>
         <strong id="unlabeledSequences" class="text-warning">0</strong>
       </div>
@@ -52,19 +40,11 @@
   <div class="card">
     <div id="sequenceList"></div>
 
-    <div
-      id="pagination"
-      style="
-        display: none;
-        justify-content: center;
-        align-items: center;
-        gap: 16px;
-        margin-top: 24px;
-      ">
+    <div id="pagination" class="d-flex justify-center align-center gap-4 mt-4 is-hidden">
       <button class="btn btn-sm btn-primary" id="prevBtn" onclick="window.ai.changePage(-1)">
         Previous
       </button>
-      <span id="pageInfo" class="text-muted" style="font-size: 0.9rem"></span>
+      <span id="pageInfo" class="text-muted text-sm"></span>
       <button class="btn btn-sm btn-primary" id="nextBtn" onclick="window.ai.changePage(1)">
         Next
       </button>
@@ -73,7 +53,7 @@
 </div>
 
 <div id="sequenceModal" class="modal-overlay">
-  <div class="modal-content" style="max-width: 600px">
+  <div class="modal-content modal-content-lg">
     <div class="modal-header">
       <h3 class="card-title">Sequence Details</h3>
       <button

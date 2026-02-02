@@ -537,7 +537,7 @@ def get_sequences_list():
         # Load state if not already loaded
         try:
             processor.load_persistent_state()
-        except:
+        except Exception:
             pass  # State might already be loaded
 
         result = processor.get_sequence_list(page=page, per_page=per_page)
@@ -554,7 +554,7 @@ def get_sequence_detail(sequence_id):
         # Load state if not already loaded
         try:
             processor.load_persistent_state()
-        except:
+        except Exception:
             pass
 
         sequence = processor.get_sequence(sequence_id)
@@ -589,7 +589,7 @@ def update_sequence_label(sequence_id):
         # Load state if not already loaded
         try:
             processor.load_persistent_state()
-        except:
+        except Exception:
             pass
 
         success = processor.update_sequence_label(sequence_id, label)
@@ -624,7 +624,7 @@ def get_label_statistics():
         # Load state if not already loaded
         try:
             processor.load_persistent_state()
-        except:
+        except Exception:
             pass
 
         stats = processor.get_label_statistics()

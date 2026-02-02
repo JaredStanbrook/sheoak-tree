@@ -1,14 +1,7 @@
 {% extends "base.html" %} {% block content %}
-<div
-  style="
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 80vh;
-    padding: 20px;
-  ">
-  <div class="card" style="max-width: 500px; width: 100%; text-align: center; padding: 40px 20px">
-    <div style="margin-bottom: 20px; color: var(--color-danger)">
+<div class="page-center">
+  <div class="card error-card">
+    <div class="error-icon">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="64"
@@ -24,41 +17,22 @@
       </svg>
     </div>
 
-    <h1 style="font-size: 2rem; margin-bottom: 10px; color: var(--color-text)">500</h1>
-    <h3 style="margin-bottom: 15px">Internal Server Error</h3>
+    <h1 class="error-code">500</h1>
+    <h3 class="error-title">Internal Server Error</h3>
 
-    <p class="text-muted" style="margin-bottom: 30px">
+    <p class="text-muted mb-3">
       The server encountered an internal error and was unable to complete your request. The system
       administrator has been notified.
     </p>
 
     {% if error %}
-    <div
-      style="
-        background: rgba(0, 0, 0, 0.3);
-        padding: 15px;
-        border-radius: 6px;
-        margin-bottom: 30px;
-        text-align: left;
-        border: 1px solid var(--glass-border);
-      ">
-      <div
-        style="
-          font-size: 0.75rem;
-          color: var(--color-text-muted);
-          margin-bottom: 5px;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-        ">
-        Error Details:
-      </div>
-      <code style="font-family: monospace; color: var(--color-danger); word-break: break-all">
-        {{ error }}
-      </code>
+    <div class="error-details">
+      <div class="error-details-label">Error Details:</div>
+      <code class="code-block">{{ error }}</code>
     </div>
     {% endif %}
 
-    <div class="button-group" style="justify-content: center; gap: 15px">
+    <div class="btn-group justify-center gap-4">
       <a href="/" class="btn btn-primary">Return Dashboard</a>
       <a href="javascript:location.reload()" class="btn">Try Again</a>
     </div>

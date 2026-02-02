@@ -38,7 +38,7 @@
             
         
 
-            <hr style="border-color: var(--border-color); margin: 20px 0;">
+            <hr class="divider">
             <h4 class="text-muted text-uppercase text-xs mb-3">Technical Config</h4>
 
             <div class="form-group">
@@ -60,38 +60,38 @@
             </div>
 
 
-            <hr style="border-color: var(--border-color); margin: 20px 0;">
+            <hr class="divider">
             <h4 class="text-muted text-uppercase text-xs mb-3">UI Representation</h4>
 
-            <div class="row" style="display: flex; gap: 15px;">
-                <div class="col" style="flex: 1;">
+            <div class="row">
+                <div class="col">
                     <label class="form-label">Active Label</label>
                     <input type="text" name="config_active_label" class="form-input" placeholder="e.g. Open / On"
                            value="{{ edit_hardware.configuration.get('active_label', '') if edit_hardware else '' }}">
                 </div>
-                <div class="col" style="flex: 1;">
+                <div class="col">
                     <label class="form-label">Inactive Label</label>
                     <input type="text" name="config_inactive_label" class="form-input" placeholder="e.g. Closed / Off"
                            value="{{ edit_hardware.configuration.get('inactive_label', '') if edit_hardware else '' }}">
                 </div>
             </div>
 
-            <div class="row" style="display: flex; gap: 15px; margin-top: 10px;">
-                <div class="col" style="flex: 1;">
+            <div class="row mt-2">
+                <div class="col">
                     <label class="form-label">Active Icon</label>
                     <input type="text" name="config_active_icon" class="form-input text-mono" placeholder="e.g. door-open"
                            value="{{ edit_hardware.configuration.get('active_icon', '') if edit_hardware else '' }}">
                 </div>
-                <div class="col" style="flex: 1;">
+                <div class="col">
                     <label class="form-label">Inactive Icon</label>
                     <input type="text" name="config_inactive_icon" class="form-input text-mono" placeholder="e.g. door-closed"
                            value="{{ edit_hardware.configuration.get('inactive_icon', '') if edit_hardware else '' }}">
                 </div>
             </div>
 
-            <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 25px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+            <div class="form-group d-flex align-center gap-2 mt-4 pt-3 border-top">
                 <input type="checkbox" name="enabled" id="chk_enabled" {{ 'checked' if (edit_hardware and edit_hardware.enabled) or not edit_hardware else '' }}>
-                <label for="chk_enabled" class="form-label" style="margin: 0; cursor: pointer;">Enabled</label>
+                <label for="chk_enabled" class="form-label form-label-inline">Enabled</label>
             </div>
 
             <button type="submit" class="btn btn-primary btn-block mt-4">
@@ -114,15 +114,15 @@
                 </thead>
                 <tbody>
                     {% for hardware in hardwares %}
-                    <tr style="{{ 'background: var(--bg-glass-hover);' if edit_hardware and edit_hardware.id == hardware.id else '' }}">
+                    <tr class="{{ 'row-highlight' if edit_hardware and edit_hardware.id == hardware.id else '' }}">
                         <td class="text-mono text-muted">#{{ hardware.id }}</td>
                         <td>
-                            <div style="font-weight: bold;">{{ hardware.name }}</div>
-                            <div style="font-weight: bold;">{{ hardware.type }}</div>
+                            <div class="text-strong">{{ hardware.name }}</div>
+                            <div class="text-strong">{{ hardware.type }}</div>
                             <div class="text-xs text-muted">{{ hardware.driver_interface }}</div>
                         </td>
                         <td>
-                            <div class="text-xs text-mono" style="line-height: 1.4;">
+                            <div class="text-xs text-mono lh-sm">
                                 {% if hardware.configuration.get('pin') %}
                                     <span class="badge badge-gray">Pin: {{ hardware.configuration.get('pin') }}</span>
                                 {% endif %}
@@ -139,7 +139,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <div class="btn-group flex-end" style="display: flex; gap: 8px;">
+                            <div class="btn-group flex-end">
                                 <a href="{{ url_for('hardwares.edit_hardware', hardware_id=hardware.id) }}" class="btn btn-sm">Edit</a>
                                 <form method="POST" action="{{ url_for('hardwares.delete_hardware', hardware_id=hardware.id) }}" onsubmit="return confirm('Delete {{ hardware.name }}?');">
                                     <button type="submit" class="btn btn-sm btn-danger">Del</button>
@@ -148,7 +148,7 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="5" class="text-center text-muted" style="padding: 30px;">No hardware configured.</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted table-empty">No hardware configured.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
