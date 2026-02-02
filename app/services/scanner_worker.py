@@ -1,6 +1,8 @@
 import logging
+import os
 import platform
 import re
+import shutil
 import socket
 import subprocess
 import time
@@ -62,9 +64,15 @@ class NetworkDiscovery:
     def __init__(self, target_gateway):
         self.subnet_prefix = ".".join(target_gateway.split(".")[:3])
         self.is_windows = platform.system().lower() == "windows"
+        self.ping_available = shutil.which("ping") is not None
+        self.arp_available = shutil.which("arp") is not None
+        self._last_warn = {}
 
     def _ping_host(self, ip):
         """Pings a single host. Returns IP if up, None otherwise."""
+        if not self.ping_available:
+            self._warn_once("ping_missing", "ping command not found; presence scan limited")
+            return None
         try:
             # Use appropriate flag for count (-n for Windows, -c for Linux/Mac)
             param = "-n" if self.is_windows else "-c"
@@ -74,6 +82,12 @@ class NetworkDiscovery:
 
             ret = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return ip if ret.returncode == 0 else None
+        except PermissionError:
+            self._warn_once(
+                "ping_permission",
+                "ping permission denied; run with privileges or set DISABLE_PRESENCE_MONITOR=1",
+            )
+            return None
         except Exception:
             return None
 
@@ -122,6 +136,9 @@ class NetworkDiscovery:
                     pass  # Fallback to CLI command
 
             # Cross-platform fallback: arp -a
+            if not self.arp_available:
+                self._warn_once("arp_missing", "arp command not found; presence scan limited")
+                return arp_map
             cmd = ["arp", "-a"]
             output = subprocess.check_output(cmd).decode()
 
@@ -146,6 +163,13 @@ class NetworkDiscovery:
 
         return arp_map
 
+    def _warn_once(self, key, message, interval_seconds=60):
+        now = time.time()
+        last = self._last_warn.get(key, 0)
+        if now - last >= interval_seconds:
+            logger.warning(message)
+            self._last_warn[key] = now
+
 
 # --- Main Worker Entry Point ---
 
@@ -159,24 +183,27 @@ def scanner_process_entry(target_ip, community, interval, queue, stop_event):
     logger.info("Network Scanner Process Started (Method: Active Ping + ARP)")
 
     # 1. Initialize mDNS (Passive Discovery)
-    zc = Zeroconf()
+    zc = None
     listener = MDNSListener()
-    # Browse common service types to enrich data
-    ServiceBrowser(
-        zc,
-        [
-            "_googlecast._tcp.local.",
-            "_airplay._tcp.local.",
-            "_http._tcp.local.",
-            "_device-info._tcp.local.",
-            "_workstation._tcp.local.",
-        ],
-        listener,
-    )
+    if os.environ.get("DISABLE_MDNS", "0") != "1":
+        zc = Zeroconf()
+        # Browse common service types to enrich data
+        ServiceBrowser(
+            zc,
+            [
+                "_googlecast._tcp.local.",
+                "_airplay._tcp.local.",
+                "_http._tcp.local.",
+                "_device-info._tcp.local.",
+                "_workstation._tcp.local.",
+            ],
+            listener,
+        )
 
     # 2. Initialize Scanner (Active Discovery)
     scanner = NetworkDiscovery(target_ip)
 
+    backoff_seconds = 0
     try:
         while not stop_event.is_set():
             start_time = time.time()
@@ -214,12 +241,16 @@ def scanner_process_entry(target_ip, community, interval, queue, stop_event):
                 if batch:
                     queue.put(batch)
 
+                backoff_seconds = 0
             except Exception as e:
-                logger.error(f"Scanner Loop Error: {e}")
+                backoff_seconds = min(backoff_seconds * 2 if backoff_seconds else 5, 60)
+                logger.warning("Scanner loop error: %s (backoff %ss)", e, backoff_seconds)
 
             # Sleep Logic
             elapsed = time.time() - start_time
             sleep_time = max(1, interval - elapsed)
+            if backoff_seconds:
+                sleep_time = max(sleep_time, backoff_seconds)
 
             # Check stop event periodically during long sleeps
             if sleep_time > 5:
@@ -233,5 +264,6 @@ def scanner_process_entry(target_ip, community, interval, queue, stop_event):
     except KeyboardInterrupt:
         pass
     finally:
-        zc.close()
+        if zc:
+            zc.close()
         logger.info("Scanner Process Exiting")

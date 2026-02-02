@@ -28,7 +28,7 @@ with app.app_context():
                         timestamp=ts,
                     )
                 )
-            except:
+            except Exception:
                 pass
 
     # Bulk save

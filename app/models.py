@@ -227,3 +227,36 @@ class NetworkSnapshot(db.Model):
             "device_count": self.device_count,
             "devices_present": self.devices_present,
         }
+
+
+class DevicePresenceSnapshot(db.Model):
+    """
+    Point-in-time presence snapshot for a single device.
+    Useful for auditing enrichment changes over time.
+    """
+
+    __tablename__ = "device_presence_snapshot"
+
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.Integer, db.ForeignKey("device.id"), nullable=False, index=True)
+    timestamp = db.Column(db.DateTime, default=datetime.now, index=True)
+
+    ip_address = db.Column(db.String(15))
+    hostname = db.Column(db.String(100))
+    mdns_services = db.Column(db.JSON, default=list)
+    is_randomized_mac = db.Column(db.Boolean, default=False)
+    fingerprint_confidence = db.Column(db.Float)
+
+    device = db.relationship("Device", backref=db.backref("presence_snapshots", lazy="dynamic"))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "device_id": self.device_id,
+            "timestamp": self.timestamp.isoformat(),
+            "ip_address": self.ip_address,
+            "hostname": self.hostname,
+            "mdns_services": self.mdns_services,
+            "is_randomized_mac": self.is_randomized_mac,
+            "fingerprint_confidence": self.fingerprint_confidence,
+        }

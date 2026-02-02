@@ -4,7 +4,13 @@ from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import desc
 
 from app.extensions import db
-from app.models import Device, DeviceAssociation, NetworkSnapshot, PresenceEvent
+from app.models import (
+    Device,
+    DeviceAssociation,
+    DevicePresenceSnapshot,
+    NetworkSnapshot,
+    PresenceEvent,
+)
 
 # Create blueprint (add this to your app/__init__.py if you don't have one)
 devices_bp = Blueprint("devices", __name__, url_prefix="/api/devices")
@@ -161,7 +167,7 @@ def register_device():
                 from netaddr import EUI
 
                 device.vendor = EUI(mac).oui.registration().org
-            except:
+            except Exception:
                 pass
 
         db.session.add(device)
@@ -416,12 +422,6 @@ def who_is_home():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@devices_bp.route("/present", methods=["GET"])
-def get_present_devices():
-    """Get only devices currently present (is_home=True) - alias for /home"""
-    return who_is_home()
-
-
 @devices_bp.route("/tracked", methods=["GET"])
 def get_tracked_devices():
     """Get only devices being tracked for presence (track_presence=True)"""
@@ -443,6 +443,32 @@ def get_tracked_devices():
 
         return jsonify({"success": True, "count": len(result), "devices": result}), 200
 
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@devices_bp.route("/<int:device_id>/snapshots", methods=["GET"])
+def get_device_snapshots(device_id):
+    """Get presence snapshot history for a device."""
+    try:
+        limit = request.args.get("limit", 100, type=int)
+        snapshots = (
+            DevicePresenceSnapshot.query.filter_by(device_id=device_id)
+            .order_by(DevicePresenceSnapshot.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "device_id": device_id,
+                    "count": len(snapshots),
+                    "snapshots": [s.to_dict() for s in snapshots],
+                }
+            ),
+            200,
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

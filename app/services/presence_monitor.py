@@ -8,7 +8,13 @@ from datetime import datetime, timedelta
 from netaddr import EUI
 
 from app.extensions import db
-from app.models import Device, DeviceAssociation, NetworkSnapshot, PresenceEvent
+from app.models import (
+    Device,
+    DeviceAssociation,
+    DevicePresenceSnapshot,
+    NetworkSnapshot,
+    PresenceEvent,
+)
 from app.services.core import BaseService
 from app.services.event_service import bus
 from app.services.scanner_worker import scanner_process_entry
@@ -114,6 +120,7 @@ class IntelligentPresenceMonitor(BaseService):
             db_devices = Device.query.all()
             device_map = {d.mac_address: d for d in db_devices}
             current_active_macs = set()
+            new_devices = []
 
             # 2. Update Active Devices
             for data in active_devices:
@@ -131,6 +138,7 @@ class IntelligentPresenceMonitor(BaseService):
                     # New Device Discovery
                     new_dev = self._register_new_device(data)
                     device_map[mac] = new_dev
+                    new_devices.append(new_dev)
                     self._handle_presence_change(new_dev, True, data)
 
             # 3. Handle Departures
@@ -143,11 +151,74 @@ class IntelligentPresenceMonitor(BaseService):
             # This allows the Frontend to know the monitor is alive
             self._save_network_snapshot(active_devices)
 
+            # 5. Correlate randomized MACs and persist per-device snapshots
+            if new_devices:
+                self._correlate_mac_addresses(new_devices)
+            self._save_presence_snapshots(active_devices, device_map)
+
             db.session.commit()
 
         except Exception as e:
             db.session.rollback()
             logger.error(f"Batch Processing Failed: {e}")
+
+    def ingest_snmp_clients(self, clients):
+        """Ingest SNMP client table entries into presence state."""
+        try:
+            with self.app.app_context():
+                db_devices = Device.query.all()
+                device_map = {d.mac_address: d for d in db_devices}
+                current_active_macs = set()
+                new_devices = []
+
+                active_devices = []
+                for client in clients:
+                    mac = client.get("mac")
+                    ip = client.get("ip")
+                    if not mac or not ip:
+                        continue
+
+                    current_active_macs.add(mac)
+
+                    data = {
+                        "mac": mac,
+                        "ip": ip,
+                        "hostname": client.get("hostname"),
+                        "mdns_services": [],
+                        "device_info": {
+                            "snmp_signal_dbm": client.get("signal_dbm"),
+                            "snmp_band": client.get("band"),
+                            "snmp_source": True,
+                        },
+                    }
+                    active_devices.append(data)
+
+                    device = device_map.get(mac)
+                    if device:
+                        self._update_device_metadata(device, data)
+                        if not device.is_home:
+                            self._handle_presence_change(device, True, data)
+                        else:
+                            device.last_seen = datetime.now()
+                    else:
+                        new_dev = self._register_new_device(data)
+                        device_map[mac] = new_dev
+                        new_devices.append(new_dev)
+                        self._handle_presence_change(new_dev, True, data)
+
+                if new_devices:
+                    self._correlate_mac_addresses(new_devices)
+
+                if self.app.config.get("SNMP_AUTHORITATIVE", False):
+                    for mac, device in device_map.items():
+                        if mac not in current_active_macs and device.is_home:
+                            self._handle_presence_change(device, False, {})
+
+                self._save_presence_snapshots(active_devices, device_map)
+                db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"SNMP Ingest Failed: {e}", exc_info=True)
 
     def _register_new_device(self, data):
         """Creates a new Device entry."""
@@ -172,7 +243,7 @@ class IntelligentPresenceMonitor(BaseService):
         if not dev.is_randomized_mac:
             try:
                 dev.vendor = EUI(mac).oui.registration().org
-            except:
+            except Exception:
                 pass
 
         db.session.add(dev)
@@ -190,16 +261,20 @@ class IntelligentPresenceMonitor(BaseService):
         if data.get("hostname"):
             device.hostname = data["hostname"]
 
-        meta = dict(device.device_metadata or {})
-        if data.get("device_info"):
-            meta.update(data["device_info"])
-        device.device_metadata = meta
-
         hour = datetime.now().hour
         times = list(device.typical_connection_times or [])
         if hour not in times:
             times.append(hour)
             device.typical_connection_times = times
+
+        meta = dict(device.device_metadata or {})
+        if data.get("device_info"):
+            meta.update(data["device_info"])
+        fingerprint, confidence = self._build_fingerprint(device, data)
+        meta["fingerprint"] = fingerprint
+        meta["fingerprint_confidence"] = confidence
+        meta["fingerprint_version"] = 1
+        device.device_metadata = meta
 
     def _handle_presence_change(self, device, is_home, data):
         event_type = "arrived" if is_home else "left"
@@ -223,20 +298,20 @@ class IntelligentPresenceMonitor(BaseService):
 
     def _correlate_mac_addresses(self, new_devices):
         tracked_candidates = Device.query.filter(
-            Device.track_presence == True,
-            Device.is_randomized_mac == False,
+            Device.track_presence.is_(True),
+            Device.is_randomized_mac.is_(False),
         ).all()
 
         for new_dev in new_devices:
             if not new_dev.is_randomized_mac:
                 continue
 
-            fp_new = self._build_fingerprint(new_dev)
+            fp_new = self._build_fingerprint_similarity(new_dev)
             best_match = None
             best_score = 0.0
 
             for candidate in tracked_candidates:
-                fp_candidate = self._build_fingerprint(candidate)
+                fp_candidate = self._build_fingerprint_similarity(candidate)
                 score = self._calculate_similarity(fp_new, fp_candidate)
 
                 if score > best_score and score >= self.correlation_threshold:
@@ -250,7 +325,33 @@ class IntelligentPresenceMonitor(BaseService):
                 new_dev.name = f"{best_match.name} (Random MAC)"
                 new_dev.track_presence = True
 
-    def _build_fingerprint(self, device):
+    def _build_fingerprint(self, device, data):
+        hostname_pattern = self._extract_hostname_pattern(device.hostname)
+        mdns_services = sorted(set(device.mdns_services or []))
+        connection_times = sorted(set(device.typical_connection_times or []))
+        device_info_keys = sorted((data.get("device_info") or {}).keys())
+
+        signals = [
+            hostname_pattern,
+            device.vendor,
+            mdns_services,
+            connection_times,
+            device_info_keys,
+        ]
+        confidence = sum(1 for signal in signals if signal) / len(signals)
+
+        return (
+            {
+                "hostname_pattern": hostname_pattern,
+                "vendor": device.vendor,
+                "mdns_services": mdns_services,
+                "connection_times": connection_times,
+                "device_info_keys": device_info_keys,
+            },
+            round(confidence, 2),
+        )
+
+    def _build_fingerprint_similarity(self, device):
         return {
             "hostname_pattern": self._extract_hostname_pattern(device.hostname),
             "vendor": device.vendor,
@@ -333,3 +434,21 @@ class IntelligentPresenceMonitor(BaseService):
         # Cleanup old snapshots (keep 3 days)
         cutoff = datetime.now() - timedelta(days=3)
         NetworkSnapshot.query.filter(NetworkSnapshot.timestamp < cutoff).delete()
+
+    def _save_presence_snapshots(self, active_devices, device_map):
+        for data in active_devices:
+            device = device_map.get(data["mac"])
+            if not device:
+                continue
+
+            meta = device.device_metadata or {}
+            snapshot = DevicePresenceSnapshot(
+                device_id=device.id,
+                timestamp=datetime.now(),
+                ip_address=data.get("ip") or device.last_ip,
+                hostname=data.get("hostname") or device.hostname,
+                mdns_services=list(data.get("mdns_services") or device.mdns_services or []),
+                is_randomized_mac=device.is_randomized_mac,
+                fingerprint_confidence=meta.get("fingerprint_confidence"),
+            )
+            db.session.add(snapshot)

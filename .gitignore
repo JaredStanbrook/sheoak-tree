@@ -3,10 +3,12 @@ __pycache__/
 *.py[cod]
 venv/
 .env
+logs/
 
 # Database
 *.db
 *.sqlite
+app/data/system_events.txt
 migrations/versions/__pycache__/
 
 # ML Artifacts (Large files/Models)

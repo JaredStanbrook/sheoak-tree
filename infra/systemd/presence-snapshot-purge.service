@@ -1,0 +1,9 @@
+[Unit]
+Description=Sheoak Tree presence snapshot retention cleanup
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sheoak-tree
+EnvironmentFile=/opt/sheoak-tree/.env
+ExecStart=/opt/sheoak-tree/venv/bin/flask purge-presence-snapshots

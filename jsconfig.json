@@ -1,17 +1,13 @@
 {
-    "compilerOptions": {
-        "module": "ESNext",
-        "target": "ES6",
-        "checkJs": true,
-        "baseUrl": ".",
-        "paths": {
-            "@static/*": [
-                "static/*"
-            ]
-        }
-    },
-    "exclude": [
-        "node_modules",
-        "venv"
-    ]
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ES6",
+    "lib": ["DOM", "ES2016"],
+    "checkJs": true,
+    "baseUrl": ".",
+    "paths": {
+      "@static/*": ["static/*"]
+    }
+  },
+  "exclude": ["node_modules", "venv"]
 }

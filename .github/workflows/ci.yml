@@ -12,23 +12,22 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Python 3.9
+      - name: Set up Python 3.8
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: "3.8"
           cache: "pip"
 
       - name: Install Dependencies
         run: |
-          # Remove RPi.GPIO for CI environment (it fails to compile on x64 Ubuntu)
-          sed -i '/RPi.GPIO/d' requirements.txt
           pip install -r requirements.txt
-          pip install ruff pytest
+          pip install -r requirements-dev.txt
 
-      - name: Lint & Format Check (Ruff)
+      - name: Lint & Format Check
         run: |
           ruff check .
           ruff format --check .
+          black --check .
 
       - name: Run Tests
         env:

@@ -1,22 +1,22 @@
-import logging
 import os
 
 from flask import Flask, jsonify, render_template, request
 
+from app.cli import register_commands
+from app.config import Config
 from app.extensions import db, migrate, socketio
+from app.logging_config import setup_logging
 from app.services.core import ServiceManager
 from app.services.hardware_manager import HardwareManager
 from app.services.presence_monitor import IntelligentPresenceMonitor
+from app.services.snmp_presence_scanner import SnmpPresenceScanner
 from app.services.system_monitor import SystemMonitor
-from config import Config
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+__version__ = "1.0.0"
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+project_root = os.path.abspath(os.path.join(basedir, os.pardir))
+logger = None
 
 
 def create_app(config_class=Config):
@@ -25,10 +25,25 @@ def create_app(config_class=Config):
     )
     app.config.from_object(config_class)
 
+    with app.app_context():
+        setup_logging(
+            app=app,
+            log_level=app.config.get("LOG_LEVEL", "INFO"),
+            log_dir=app.config.get("LOG_DIR", os.path.join(project_root, "logs")),
+        )
+
+    global logger
+    logger = app.logger
+
     # Initialize Extensions
     db.init_app(app)
     migrate.init_app(app, db)
-    socketio.init_app(app, path="/sheoak/socket.io")
+    socketio.init_app(
+        app,
+        async_mode=app.config.get("SOCKETIO_ASYNC_MODE", "gevent"),
+        cors_allowed_origins="*",
+        path=app.config.get("SOCKETIO_PATH", "/sheoak/socket.io"),
+    )
 
     # Initialize Service Manager
     app.service_manager = ServiceManager()
@@ -43,11 +58,25 @@ def create_app(config_class=Config):
 
         # 3. Presence Monitor (Process-based wrapper)
         # Note: Ensure IntelligentPresenceMonitor inherits BaseService
-        app.service_manager.register(
-            IntelligentPresenceMonitor(
-                app, target_ip=app.config["SNMP_TARGET_IP"], community=app.config["SNMP_COMMUNITY"]
+        if not app.config.get("DISABLE_PRESENCE_MONITOR", False):
+            app.service_manager.register(
+                IntelligentPresenceMonitor(
+                    app,
+                    target_ip=app.config["SNMP_TARGET_IP"],
+                    community=app.config["SNMP_COMMUNITY"],
+                    scan_interval=app.config.get("PRESENCE_SCAN_INTERVAL", 60),
+                )
             )
-        )
+
+        if app.config.get("ENABLE_SNMP_PRESENCE", False):
+            app.service_manager.register(
+                SnmpPresenceScanner(
+                    app,
+                    target_ip=app.config["SNMP_TARGET_IP"],
+                    community=app.config["SNMP_COMMUNITY"],
+                    interval=app.config.get("SNMP_POLL_INTERVAL", 60),
+                )
+            )
 
     from app.routes import api, devices, hardwares, main
 
@@ -55,6 +84,35 @@ def create_app(config_class=Config):
     app.register_blueprint(api.bp, url_prefix="/api")
     app.register_blueprint(hardwares.bp, url_prefix="/hardwares")
     app.register_blueprint(devices.devices_bp)
+
+    @app.context_processor
+    def inject_sheoak_config():
+        return {
+            "sheoak_config": {
+                "timezone": app.config.get("TIMEZONE", "Australia/Perth"),
+                "locale": app.config.get("LOCALE", "en-AU"),
+                "socketioEnabled": app.config.get("SOCKETIO_ENABLED", True),
+                "socketioPath": app.config.get("SOCKETIO_PATH", "/sheoak/socket.io"),
+            }
+        }
+
+    def start_services():
+        if app.config.get("TESTING"):
+            return
+        if not getattr(app, "_services_started", False):
+            app.service_manager.start_all()
+            app._services_started = True
+
+    def stop_services():
+        if getattr(app, "_services_started", False):
+            app.service_manager.stop_all()
+            app._services_started = False
+
+    app.start_services = start_services
+    app.stop_services = stop_services
+
+    # Register CLI commands
+    register_commands(app)
 
     # Global Error Handlers
     register_error_handlers(app)

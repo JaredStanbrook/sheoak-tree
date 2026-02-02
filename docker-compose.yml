@@ -1,0 +1,13 @@
+services:
+  sheoak-tree:
+    build: .
+    ports:
+      - "5173:8000"
+    env_file:
+      - .env
+    environment:
+      FLASK_ENV: production
+      DISABLE_PRESENCE_MONITOR: "0"
+      DISABLE_MDNS: "0"
+    volumes:
+      - ./app/data:/app/app/data

@@ -1,146 +1,577 @@
-import { Utils } from "./core.js";
-
-class PresenceController {
+// Presence Dashboard JavaScript
+class PresenceDashboard {
   constructor() {
-    this.elements = {
-      tableBody: document.getElementById("device-list-body"),
-      modal: document.getElementById("editDeviceModal"),
-      inputs: {
-        id: document.getElementById("edit-device-id"),
-        name: document.getElementById("edit-device-name"),
-        owner: document.getElementById("edit-device-owner"),
-      },
-    };
+    this.devices = [];
+    this.status = null;
+    this.presenceHistory = [];
+    this.selectedDevice = null;
+    this.autoRefresh = true;
+    this.filterTracked = false;
+    this.refreshInterval = null;
+    this.currentTab = "home";
 
-    // Listen for updates (SSE via core.js dispatch)
-    window.addEventListener("presence_update", () => this.loadDevices());
-
-    // Initial Load
-    this.loadDevices();
+    this.init();
   }
 
-  async loadDevices() {
-    if (!this.elements.tableBody) return;
-    this.elements.tableBody.innerHTML =
-      '<tr><td colspan="6" class="text-center">Loading...</td></tr>';
+  init() {
+    this.setupEventListeners();
+    this.loadData();
+    this.startAutoRefresh();
+  }
 
-    try {
-      const data = await Utils.fetchJson("/api/devices");
-      this.elements.tableBody.innerHTML = "";
+  setupEventListeners() {
+    // Auto-refresh toggle
+    document.getElementById("autoRefreshBtn").addEventListener("click", () => {
+      this.toggleAutoRefresh();
+    });
 
-      if (data.success) {
-        data.devices.forEach((device) => {
-          const tr = document.createElement("tr");
-          const lastSeen = new Date(device.last_seen).toLocaleString("en-AU");
-          const isRecentlyHome = Date.now() - new Date(device.last_seen).getTime() < 60000;
-          const statusClass = isRecentlyHome ? "connected" : "offline";
+    // Filter tracked devices
+    document.getElementById("filterTrackedBtn").addEventListener("click", () => {
+      this.filterTracked = !this.filterTracked;
+      this.updateFilterButton();
+      this.renderAllDevicesTable();
+    });
 
-          const privacyIcon = device.is_randomized_mac
-            ? '<span title="Private Wi-Fi Address" style="cursor:help">🛡️</span>'
-            : "";
+    // Tab navigation
+    const dashboardNav = document.getElementById("dashboardTabs");
 
-          const safeName = Utils.escape(device.name);
-          const safeOwner = Utils.escape(device.owner || "");
-
-          tr.innerHTML = `
-                        <td><div class="status-dot ${statusClass}"></div></td>
-                        <td>
-                            <div style="font-weight: 600; color: var(--color-text);">${
-                              device.name
-                            }</div>
-                            <div style="font-size: 0.8rem; color: var(--color-text-muted);">${
-                              safeOwner || "Unassigned"
-                            }</div>
-                        </td>
-                        <td>
-                            ${
-                              device.vendor
-                                ? `<span class="badge-gray">${device.vendor}</span>`
-                                : ""
-                            }
-                            <div class="mono" style="font-size: 0.75rem; margin-top:4px; opacity:0.7;">${
-                              device.last_ip || "No IP"
-                            }</div>
-                        </td>
-                        <td>
-                            ${
-                              device.hostname
-                                ? `<div style="color:var(--color-primary); font-size:0.85rem;">${Utils.escape(
-                                    device.hostname
-                                  )}</div>`
-                                : '<span style="opacity:0.3">-</span>'
-                            }
-                            <div class="mono" style="font-size: 0.75rem; opacity: 0.6;">${
-                              device.mac_address
-                            } ${privacyIcon}</div>
-                        </td>
-                        <td style="font-size: 0.85rem; color: var(--color-text-muted);">${lastSeen}</td>
-                        <td>
-                            <button class="btn btn-small" 
-                                onclick="window.presence.openEditModal(${
-                                  device.id
-                                }, '${safeName}', '${safeOwner}', ${device.track_presence})">
-                                Edit
-                            </button>
-                        </td>
-                    `;
-          this.elements.tableBody.appendChild(tr);
+    if (dashboardNav) {
+      dashboardNav.querySelectorAll(".nav-item").forEach((tab) => {
+        tab.addEventListener("click", (e) => {
+          e.preventDefault();
+          const tabName = tab.dataset.tab;
+          this.switchTab(tabName);
         });
-      }
-    } catch (e) {
-      this.elements.tableBody.innerHTML = `<tr><td colspan="6" class="text-warning">Error: ${e.message}</td></tr>`;
-    }
-  }
-
-  openEditModal(id, name, owner, track_presence) {
-    this.elements.inputs.id.value = id;
-    this.elements.inputs.name.value = name;
-    this.elements.inputs.owner.value = owner;
-    document.getElementById("edit-device-track").checked = track_presence === true;
-    this.elements.modal.classList.add("active");
-  }
-
-  async submitUpdate() {
-    const id = this.elements.inputs.id.value;
-    const name = this.elements.inputs.name.value;
-    const owner = this.elements.inputs.owner.value;
-    const track_presence = document.getElementById("edit-device-track").checked;
-    const btn = document.querySelector("#editDeviceModal .btn-primary");
-
-    btn.textContent = "Saving...";
-    try {
-      const res = await Utils.fetchJson(`/api/devices/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, owner, track_presence }),
       });
-      if (res.success) {
-        this.elements.modal.classList.remove("active");
-        this.loadDevices();
-      } else {
-        alert("Error: " + res.error);
-      }
-    } catch (e) {
-      alert("Failed: " + e);
-    } finally {
-      btn.textContent = "Save";
+    }
+
+    // Modal tracking toggle
+    const toggleBtn = document.getElementById("modalToggleTracking");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        if (this.selectedDevice) {
+          this.toggleTracking(this.selectedDevice.id, this.selectedDevice.track_presence);
+        }
+      });
     }
   }
 
-  async deleteDevice() {
-    if (!confirm("Stop monitoring this device?")) return;
-    const id = this.elements.inputs.id.value;
-    try {
-      const res = await Utils.fetchJson(`/api/devices/${id}`, { method: "DELETE" });
-      if (res.success) {
-        this.elements.modal.classList.remove("active");
-        this.loadDevices();
-      }
-    } catch (e) {
-      alert("Delete failed");
+  switchTab(tabName) {
+    // 1. Get the container for the dashboard tabs
+    const dashboardNav = document.getElementById("dashboardTabs");
+    if (!dashboardNav) return; // Safety check
+
+    // 2. ONLY remove 'active' from items INSIDE the dashboard container
+    dashboardNav.querySelectorAll(".nav-item").forEach((item) => {
+      item.classList.remove("active");
+    });
+
+    // 3. Add 'active' to the clicked tab (also scoped to the container)
+    const activeTab = dashboardNav.querySelector(`[data-tab="${tabName}"]`);
+    if (activeTab) {
+      activeTab.classList.add("active");
     }
+
+    // Update tab panes
+    document.querySelectorAll(".tab-pane").forEach((pane) => {
+      pane.classList.remove("active");
+    });
+
+    const targetPane = document.getElementById(`${tabName}Tab`);
+    if (targetPane) {
+      targetPane.classList.add("active");
+    }
+
+    this.currentTab = tabName;
+  }
+
+  toggleAutoRefresh() {
+    this.autoRefresh = !this.autoRefresh;
+    const btn = document.getElementById("autoRefreshBtn");
+    const text = document.getElementById("autoRefreshText");
+
+    if (this.autoRefresh) {
+      btn.className = "btn btn-sm btn-primary";
+      text.textContent = "Auto-refresh ON";
+      this.startAutoRefresh();
+    } else {
+      btn.className = "btn btn-sm btn-primary";
+      text.textContent = "Auto-refresh OFF";
+      this.stopAutoRefresh();
+    }
+  }
+
+  startAutoRefresh() {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+
+    this.refreshInterval = setInterval(() => {
+      if (this.autoRefresh) {
+        this.loadData();
+      }
+    }, 5000);
+  }
+
+  stopAutoRefresh() {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
+  }
+
+  updateFilterButton() {
+    const text = document.getElementById("filterTrackedText");
+
+    if (this.filterTracked) {
+      text.textContent = "Tracked Only";
+    } else {
+      text.textContent = "All Devices";
+    }
+  }
+
+  async loadData() {
+    await Promise.all([this.fetchDevices(), this.fetchStatus(), this.fetchHistory()]);
+
+    this.render();
+  }
+
+  async fetchDevices() {
+    try {
+      const response = await fetch("/api/devices/");
+      const data = await response.json();
+      if (data.success) {
+        this.devices = data.devices;
+      }
+    } catch (error) {
+      console.error("Error fetching devices:", error);
+    }
+  }
+
+  async fetchStatus() {
+    try {
+      const response = await fetch("/api/devices/status");
+      const data = await response.json();
+      if (data.success) {
+        this.status = data;
+      }
+    } catch (error) {
+      console.error("Error fetching status:", error);
+    }
+  }
+
+  async fetchHistory() {
+    try {
+      const response = await fetch("/api/devices/status");
+      const data = await response.json();
+      if (data.success && data.recent_events) {
+        this.presenceHistory = data.recent_events;
+      }
+    } catch (error) {
+      console.error("Error fetching history:", error);
+    }
+  }
+
+  async toggleTracking(deviceId, currentState) {
+    try {
+      const response = await fetch(`/api/devices/${deviceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track_presence: !currentState }),
+      });
+
+      if (response.ok) {
+        await this.fetchDevices();
+        this.render();
+
+        // Update modal if open
+        if (this.selectedDevice && this.selectedDevice.id === deviceId) {
+          this.selectedDevice = this.devices.find((d) => d.id === deviceId);
+          this.updateModalTracking();
+        }
+      }
+    } catch (error) {
+      console.error("Error toggling tracking:", error);
+    }
+  }
+
+  render() {
+    this.renderStatusCards();
+    this.renderHomeDevices();
+    this.renderAwayDevices();
+    this.renderAllDevicesTable();
+    this.renderActivity();
+  }
+
+  renderStatusCards() {
+    if (!this.status) return;
+
+    const stats = this.status.statistics;
+    const system = this.status.system;
+
+    // System status
+    const statusDot = document.getElementById("systemStatusDot");
+    const statusText = document.getElementById("systemStatusText");
+    const statusMeta = document.getElementById("systemStatus");
+
+    if (system.monitor_running) {
+      statusDot.classList.add("connected");
+      statusText.textContent = "Active";
+      statusMeta.textContent = "Active";
+    } else {
+      statusDot.classList.remove("connected");
+      statusText.textContent = "Offline";
+      statusMeta.textContent = "Offline";
+    }
+
+    // Devices home
+    document.getElementById("devicesHomeCount").textContent =
+      `${stats.currently_home} / ${stats.total_devices}`;
+
+    // Tracked devices
+    document.getElementById("trackedCount").textContent = stats.tracked_devices;
+
+    // Scan count
+    document.getElementById("scanCount").textContent = system.scan_count || 0;
+  }
+
+  renderHomeDevices() {
+    const homeDevices = this.devices.filter((d) => d.is_home);
+    const container = document.getElementById("homeDevicesList");
+    const countEl = document.getElementById("homeDeviceCount");
+
+    countEl.textContent = homeDevices.length;
+
+    if (homeDevices.length === 0) {
+      container.innerHTML = '<p class="text-muted text-center">No devices currently home</p>';
+      return;
+    }
+
+    container.innerHTML = homeDevices
+      .map(
+        (device) => `
+      <div class="log-item log-item-clickable" onclick="window.presenceDashboard.showDeviceDetail(${
+        device.id
+      })">
+        <div class="log-content">
+          <strong>
+            <i class="${this.getDeviceIcon(device)}"></i>
+            ${this.escapeHtml(device.name)}
+          </strong>
+          <span>
+            ${device.owner ? this.escapeHtml(device.owner) + " • " : ""}
+            ${device.last_ip || "No IP"}
+            ${
+              device.is_randomized_mac
+                ? ' • <i class="bi bi-shield-check" title="Randomized MAC"></i>'
+                : ""
+            }
+            ${
+              device.linked_to_device_id
+                ? ' • <i class="bi bi-link-45deg" title="Linked device"></i>'
+                : ""
+            }
+          </span>
+        </div>
+        <div class="log-time">${this.formatTimestamp(device.last_seen)}</div>
+      </div>
+    `,
+      )
+      .join("");
+  }
+
+  renderAwayDevices() {
+    const awayDevices = this.devices.filter((d) => !d.is_home && d.track_presence);
+    const container = document.getElementById("awayDevicesList");
+    const countEl = document.getElementById("awayDeviceCount");
+
+    countEl.textContent = awayDevices.length;
+
+    if (awayDevices.length === 0) {
+      container.innerHTML = '<p class="text-muted text-center">Everyone is home!</p>';
+      return;
+    }
+
+    container.innerHTML = awayDevices
+      .map(
+        (device) => `
+      <div class="log-item log-item-clickable log-item-muted" onclick="window.presenceDashboard.showDeviceDetail(${
+        device.id
+      })">
+        <div class="log-content">
+          <strong>
+            <i class="${this.getDeviceIcon(device)}"></i>
+            ${this.escapeHtml(device.name)}
+          </strong>
+          <span>
+            ${device.owner ? this.escapeHtml(device.owner) + " • " : ""}
+            Last seen ${this.formatTimestamp(device.last_seen)}
+          </span>
+        </div>
+      </div>
+    `,
+      )
+      .join("");
+  }
+
+  renderAllDevicesTable() {
+    const displayDevices = this.filterTracked
+      ? this.devices.filter((d) => d.track_presence)
+      : this.devices;
+
+    const tbody = document.getElementById("allDevicesTable");
+    const countEl = document.getElementById("allDeviceCount");
+
+    countEl.textContent = displayDevices.length;
+
+    if (displayDevices.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="6" class="text-center text-muted">No devices found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = displayDevices
+      .map(
+        (device) => `
+      <tr class="table-row-clickable" onclick="window.presenceDashboard.showDeviceDetail(${
+        device.id
+      })">
+        <td>
+          <div class="device-cell">
+            <i class="${this.getDeviceIcon(device)}"></i>
+            <div>
+              <div class="hardware-name device-name">${this.escapeHtml(device.name)}</div>
+              ${
+                device.owner
+                  ? `<small class="device-subtitle">${this.escapeHtml(device.owner)}</small>`
+                  : ""
+              }
+            </div>
+          </div>
+        </td>
+        <td>
+          <span class="badge ${device.is_home ? "status-active" : "status-safe"}">
+            ${device.is_home ? "Home" : "Away"}
+          </span>
+        </td>
+        <td>
+          <div class="device-meta">
+            <code class="text-mono">${device.mac_address}</code>
+            ${device.is_randomized_mac ? '<i class="bi bi-shield-check"></i>' : ""}
+            ${device.linked_to_device_id ? '<i class="bi bi-link-45deg"></i>' : ""}
+          </div>
+        </td>
+        <td class="text-muted">${device.last_ip || "-"}</td>
+        <td class="text-muted">${this.formatTimestamp(device.last_seen)}</td>
+        <td class="text-right">
+          <button 
+            class="btn btn-sm ${device.track_presence ? "btn-primary" : "btn-primary"}"
+            onclick="event.stopPropagation(); window.presenceDashboard.toggleTracking(${
+              device.id
+            }, ${device.track_presence})"
+          >
+            ${device.track_presence ? "Enabled" : "Disabled"}
+          </button>
+        </td>
+      </tr>
+    `,
+      )
+      .join("");
+  }
+
+  renderActivity() {
+    const container = document.getElementById("activityList");
+
+    if (this.presenceHistory.length === 0) {
+      container.innerHTML = '<p class="text-muted text-center">No recent activity</p>';
+      return;
+    }
+
+    container.innerHTML = this.presenceHistory
+      .map(
+        (event) => `
+      <div class="log-item type-${event.event_type === "arrived" ? "motion" : "door"}">
+        <div class="log-content">
+          <strong>
+            <i class="bi ${event.event_type === "arrived" ? "bi-wifi" : "bi-wifi-off"}"></i>
+            ${this.escapeHtml(event.device_name)}
+          </strong>
+          <span>
+            ${event.event_type === "arrived" ? "Arrived home" : "Left home"}
+            ${event.ip_address ? " • " + event.ip_address : ""}
+          </span>
+        </div>
+        <div class="log-time">${this.formatTimestamp(event.timestamp)}</div>
+      </div>
+    `,
+      )
+      .join("");
+  }
+
+  showDeviceDetail(deviceId) {
+    this.selectedDevice = this.devices.find((d) => d.id === deviceId);
+    if (!this.selectedDevice) return;
+
+    const modal = document.getElementById("deviceDetailModal");
+
+    // Set basic info
+    document.getElementById("modalDeviceName").textContent = this.selectedDevice.name;
+    const ownerEl = document.getElementById("modalDeviceOwner");
+    if (this.selectedDevice.owner) {
+      ownerEl.textContent = this.selectedDevice.owner;
+    }
+    this.setVisibility(ownerEl, Boolean(this.selectedDevice.owner));
+
+    // Status
+    document.getElementById("modalStatus").textContent = this.selectedDevice.is_home
+      ? "Home"
+      : "Away";
+
+    // Last seen
+    document.getElementById("modalLastSeen").textContent = this.formatTimestamp(
+      this.selectedDevice.last_seen,
+    );
+
+    // MAC
+    document.getElementById("modalMac").textContent = this.selectedDevice.mac_address;
+
+    // IP
+    document.getElementById("modalIp").textContent = this.selectedDevice.last_ip || "Unknown";
+
+    // Hostname
+    const hostnameEl = document.getElementById("modalHostname");
+    if (this.selectedDevice.hostname) {
+      document.getElementById("modalHostnameValue").textContent = this.selectedDevice.hostname;
+    }
+    this.setVisibility(hostnameEl, Boolean(this.selectedDevice.hostname));
+
+    // Vendor
+    const vendorEl = document.getElementById("modalVendor");
+    if (this.selectedDevice.vendor) {
+      document.getElementById("modalVendorValue").textContent = this.selectedDevice.vendor;
+    }
+    this.setVisibility(vendorEl, Boolean(this.selectedDevice.vendor));
+
+    // Random MAC warning
+    const randomMacEl = document.getElementById("modalRandomMacWarning");
+    if (this.selectedDevice.is_randomized_mac) {
+      let warningText = "This device uses MAC address randomization for privacy.";
+      if (this.selectedDevice.linked_to_device_id && this.selectedDevice.link_confidence) {
+        warningText += ` Linked to primary device (confidence: ${(
+          this.selectedDevice.link_confidence * 100
+        ).toFixed(0)}%)`;
+      }
+      document.getElementById("modalRandomMacText").textContent = warningText;
+    }
+    this.setVisibility(randomMacEl, this.selectedDevice.is_randomized_mac, "is-flex");
+
+    // Linked MACs
+    const linkedMacsEl = document.getElementById("modalLinkedMacs");
+    if (this.selectedDevice.linked_macs && this.selectedDevice.linked_macs.length > 0) {
+      document.getElementById("linkedMacCount").textContent =
+        this.selectedDevice.linked_macs.length;
+
+      const linkedList = this.selectedDevice.linked_macs
+        .map(
+          (linked) => `
+        <div class="linked-mac-item">
+          <code class="text-mono">${linked.mac}</code>
+          <span class="text-muted text-xs">${(linked.confidence * 100).toFixed(
+            0,
+          )}% confidence</span>
+        </div>
+      `,
+        )
+        .join("");
+
+      document.getElementById("linkedMacsList").innerHTML = linkedList;
+    }
+    this.setVisibility(
+      linkedMacsEl,
+      Boolean(this.selectedDevice.linked_macs && this.selectedDevice.linked_macs.length > 0),
+    );
+
+    this.updateModalTracking();
+    modal.classList.add("active");
+  }
+
+  closeModal() {
+    document.getElementById("deviceDetailModal").classList.remove("active");
+  }
+
+  updateModalTracking() {
+    const btn = document.getElementById("modalToggleTracking");
+    if (this.selectedDevice.track_presence) {
+      btn.textContent = "Disable Tracking";
+      btn.className = "btn btn-primary btn-block";
+    } else {
+      btn.textContent = "Enable Tracking";
+      btn.className = "btn btn-primary btn-block";
+    }
+  }
+
+  setVisibility(element, isVisible, displayClass = "is-block") {
+    if (!element) return;
+    if (isVisible) {
+      element.classList.remove("is-hidden");
+      element.classList.add(displayClass);
+    } else {
+      element.classList.add("is-hidden");
+      element.classList.remove(displayClass);
+    }
+  }
+
+  getDeviceIcon(device) {
+    const hostname = (device.hostname || "").toLowerCase();
+    const metadata = device.device_metadata || {};
+
+    if (
+      hostname.includes("iphone") ||
+      hostname.includes("android") ||
+      hostname.includes("galaxy")
+    ) {
+      return "bi bi-phone";
+    }
+    if (hostname.includes("macbook") || hostname.includes("laptop")) {
+      return "bi bi-laptop";
+    }
+    if (hostname.includes("tv") || metadata.os === "Tizen") {
+      return "bi bi-tv";
+    }
+    return "bi bi-question-circle";
+  }
+
+  formatTimestamp(timestamp) {
+    if (!timestamp) return "Never";
+
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return date.toLocaleDateString();
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
   }
 }
 
-// Initialize
-window.presence = new PresenceController();
+// Initialize dashboard when DOM is ready
+window.presenceDashboard = null;
+document.addEventListener("DOMContentLoaded", () => {
+  window.presenceDashboard = new PresenceDashboard();
+});
+
+// Cleanup on page unload
+window.addEventListener("beforeunload", () => {
+  if (window.presenceDashboard) {
+    window.presenceDashboard.stopAutoRefresh();
+  }
+});

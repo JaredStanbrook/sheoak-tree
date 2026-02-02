@@ -1,42 +1,223 @@
 {% extends "base.html" %} {% block head_scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js" defer></script>
 <script
-  src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"
-  defer></script>
-{%endblock %} {% block content %}
-<div class="layout-grid" style="grid-template-columns: 1fr 350px">
-  <div class="card">
-    <div class="card-header">
-      <h3 class="card-title">Activity Frequency</h3>
-      <div style="display: flex; gap: 12px">
-        <select id="timeRange" class="form-select" style="width: auto; padding-right: 32px">
-          <option value="6">Last 6 Hours</option>
-          <option value="24" selected>Last 24 Hours</option>
-          <option value="168">Last Week</option>
-        </select>
-        <select id="intervalRange" class="form-select" style="width: auto; padding-right: 32px">
-          <option value="15">15 Min</option>
-          <option value="30" selected>30 Min</option>
-          <option value="60">1 Hour</option>
-        </select>
-      </div>
+    src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"
+    defer
+></script>
+<script
+    src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"
+    defer
+></script>
+{% endblock %} {% block content %}
+<section class="analysis-header card">
+    <div>
+        <h2 class="card-title">Analysis</h2>
+        <p class="card-subtitle">Historical monitoring and trend breakdown</p>
     </div>
+    <div class="analysis-presets">
+        <button
+            class="btn btn-sm btn-ghost preset-btn is-active"
+            data-range="1h"
+        >
+            Last 1h
+        </button>
+        <button class="btn btn-sm btn-ghost preset-btn" data-range="24h">
+            Last 24h
+        </button>
+        <button class="btn btn-sm btn-ghost preset-btn" data-range="7d">
+            Last 7d
+        </button>
+        <button class="btn btn-sm btn-ghost preset-btn" data-range="30d">
+            Last 30d
+        </button>
+    </div>
+    <div class="analysis-controls">
+        <div class="analysis-range">
+            <div class="form-group">
+                <label class="form-label">Start</label>
+                <input
+                    id="rangeStart"
+                    type="datetime-local"
+                    class="form-input"
+                />
+            </div>
+            <div class="form-group">
+                <label class="form-label">End</label>
+                <input id="rangeEnd" type="datetime-local" class="form-input" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Bucket</label>
+                <select id="bucketSize" class="form-select">
+                    <option value="auto" selected>Auto</option>
+                    <option value="1">1m</option>
+                    <option value="5">5m</option>
+                    <option value="15">15m</option>
+                    <option value="60">1h</option>
+                    <option value="1440">1d</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Overlays</label>
+                <select id="overlayToggle" class="form-select">
+                    <option value="on" selected>Show</option>
+                    <option value="off">Hide</option>
+                </select>
+            </div>
+            <button id="applyRange" class="btn btn-primary">Apply</button>
+        </div>
+    </div>
+</section>
 
-    <div style="position: relative; height: 400px; width: 100%">
-      <canvas id="frequencyChart"></canvas>
-    </div>
-    <div id="chartInfo" class="text-center text-muted mt-4" style="font-size: 0.85rem"></div>
-  </div>
+<section id="analysisBanner" class="alert alert-danger is-hidden"></section>
 
-  <div class="card">
-    <div class="card-header">
-      <h3 class="card-title">Event Log</h3>
+<section class="summary-cards" id="summaryGrid">
+    <div class="summary-card">
+        <div class="summary-title">Current</div>
+        <div class="summary-value" id="summaryCurrent">—</div>
+        <div class="summary-meta" id="summaryCurrentMeta">Latest datapoint</div>
     </div>
+    <div class="summary-card">
+        <div class="summary-title">Average</div>
+        <div class="summary-value" id="summaryAverage">—</div>
+        <div class="summary-meta">Range average</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-title">Peak</div>
+        <div class="summary-value" id="summaryPeak">—</div>
+        <div class="summary-meta" id="summaryPeakMeta">Highest interval</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-title">Change</div>
+        <div class="summary-value" id="summaryChange">—</div>
+        <div class="summary-meta">vs previous window</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-title">Events</div>
+        <div class="summary-value" id="summaryEvents">—</div>
+        <div class="summary-meta">Total active</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-title">Anomalies</div>
+        <div class="summary-value" id="summaryAnomalies">—</div>
+        <div class="summary-meta">High spikes</div>
+    </div>
+</section>
+
+<section class="card analysis-primary">
+    <div class="card-header">
+        <div>
+            <h3 class="card-title">Trend Overview</h3>
+            <p class="card-subtitle" id="primarySubtitle">Loading range…</p>
+        </div>
+        <div class="analysis-inline-controls">
+            <select id="topNRange" class="form-select select-compact">
+                <option value="5">Top 5</option>
+                <option value="10" selected>Top 10</option>
+                <option value="0">All</option>
+            </select>
+            <input
+                id="activityThreshold"
+                class="form-input select-compact"
+                type="number"
+                min="0"
+                value="0"
+                placeholder="Min active"
+            />
+        </div>
+    </div>
+    <div class="chart-container chart-container-lg">
+        <canvas id="frequencyChart"></canvas>
+    </div>
+</section>
+
+<section class="analysis-grid">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Top Contributors</h3>
+        </div>
+        <div class="chart-container chart-container-md">
+            <canvas id="contributorsChart"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Hourly Pattern</h3>
+        </div>
+        <div class="chart-container chart-container-md">
+            <canvas id="hourlyChart"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Distribution</h3>
+        </div>
+        <div class="chart-container chart-container-md">
+            <canvas id="distributionChart"></canvas>
+        </div>
+    </div>
+</section>
+
+<section class="card analysis-detail">
+    <div class="card-header">
+        <div>
+            <h3 class="card-title" id="hardwareDetailTitle">Hardware Detail</h3>
+            <p class="card-subtitle" id="hardwareDetailSubtitle">
+                Select a series to drill down
+            </p>
+        </div>
+        <button id="exportHardwareSummary" class="btn btn-sm btn-ghost">
+            Export Summary CSV
+        </button>
+    </div>
+    <div class="detail-grid" id="hardwareDetailSummary"></div>
+    <div class="analysis-detail-grid">
+        <div class="chart-container chart-container-md">
+            <canvas id="hardwareDetailChart"></canvas>
+        </div>
+        <div class="chart-container chart-container-md">
+            <canvas id="hardwareDetailOpenChart"></canvas>
+        </div>
+    </div>
+    <div class="log-list mt-4" id="hardwareDetailEvents">
+        <div class="text-center text-muted list-empty">
+            Select a series to view events
+        </div>
+    </div>
+    <div class="analysis-table">
+        <table class="glass-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Count</th>
+                    <th>Avg Value</th>
+                </tr>
+            </thead>
+            <tbody id="bucketTableBody">
+                <tr>
+                    <td colspan="3" class="text-center text-muted table-empty">
+                        Select a range
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<details class="card analysis-log">
+    <summary class="card-header">
+        <div>
+            <h3 class="card-title">Event Log</h3>
+            <p class="card-subtitle">
+                Collapsed by default to keep the layout clean
+            </p>
+        </div>
+    </summary>
     <div id="activity-list" class="log-list">
-      <div class="text-center text-muted" style="padding: 40px">Loading history...</div>
+        <div class="text-center text-muted list-empty">Loading history...</div>
     </div>
-  </div>
-</div>
+</details>
 {% endblock %} {% block scripts %}
-<script type="module" src="{{ url_for('static', filename='js/analysis.js') }}"></script>
+<script
+    type="module"
+    src="{{ url_for('static', filename='js/analysis.js') }}"
+></script>
 {% endblock %}
