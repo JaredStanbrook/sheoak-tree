@@ -2,7 +2,6 @@ def test_config(app):
     """Test that testing config is loaded correctly."""
     assert app.config["TESTING"] is True
     assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
-    assert app.config["SOCKETIO_ENABLED"] is False
 
 
 def test_version_constant():

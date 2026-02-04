@@ -4,7 +4,7 @@ bind = "0.0.0.0:8000"
 workers = int(os.environ.get("WEB_CONCURRENCY", "2"))
 worker_class = os.environ.get(
     "GUNICORN_WORKER_CLASS",
-    "geventwebsocket.gunicorn.workers.GeventWebSocketWorker",
+    "gthread",
 )
 worker_connections = 1000
 timeout = 120

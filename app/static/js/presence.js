@@ -201,6 +201,7 @@ class PresenceDashboard {
     this.renderAwayDevices();
     this.renderAllDevicesTable();
     this.renderActivity();
+    this.refreshIcons();
   }
 
   renderStatusCards() {
@@ -255,7 +256,7 @@ class PresenceDashboard {
       })">
         <div class="log-content">
           <strong>
-            <i class="${this.getDeviceIcon(device)}"></i>
+            <i data-lucide="${this.getDeviceIcon(device)}"></i>
             ${this.escapeHtml(device.name)}
           </strong>
           <span>
@@ -263,12 +264,12 @@ class PresenceDashboard {
             ${device.last_ip || "No IP"}
             ${
               device.is_randomized_mac
-                ? ' • <i class="bi bi-shield-check" title="Randomized MAC"></i>'
+                ? ' • <i data-lucide="shield-check" title="Randomized MAC"></i>'
                 : ""
             }
             ${
               device.linked_to_device_id
-                ? ' • <i class="bi bi-link-45deg" title="Linked device"></i>'
+                ? ' • <i data-lucide="link" title="Linked device"></i>'
                 : ""
             }
           </span>
@@ -300,7 +301,7 @@ class PresenceDashboard {
       })">
         <div class="log-content">
           <strong>
-            <i class="${this.getDeviceIcon(device)}"></i>
+            <i data-lucide="${this.getDeviceIcon(device)}"></i>
             ${this.escapeHtml(device.name)}
           </strong>
           <span>
@@ -338,7 +339,7 @@ class PresenceDashboard {
       })">
         <td>
           <div class="device-cell">
-            <i class="${this.getDeviceIcon(device)}"></i>
+            <i data-lucide="${this.getDeviceIcon(device)}"></i>
             <div>
               <div class="hardware-name device-name">${this.escapeHtml(device.name)}</div>
               ${
@@ -357,8 +358,8 @@ class PresenceDashboard {
         <td>
           <div class="device-meta">
             <code class="text-mono">${device.mac_address}</code>
-            ${device.is_randomized_mac ? '<i class="bi bi-shield-check"></i>' : ""}
-            ${device.linked_to_device_id ? '<i class="bi bi-link-45deg"></i>' : ""}
+            ${device.is_randomized_mac ? '<i data-lucide="shield-check"></i>' : ""}
+            ${device.linked_to_device_id ? '<i data-lucide="link"></i>' : ""}
           </div>
         </td>
         <td class="text-muted">${device.last_ip || "-"}</td>
@@ -393,7 +394,7 @@ class PresenceDashboard {
       <div class="log-item type-${event.event_type === "arrived" ? "motion" : "door"}">
         <div class="log-content">
           <strong>
-            <i class="bi ${event.event_type === "arrived" ? "bi-wifi" : "bi-wifi-off"}"></i>
+            <i data-lucide="${event.event_type === "arrived" ? "wifi" : "wifi-off"}"></i>
             ${this.escapeHtml(event.device_name)}
           </strong>
           <span>
@@ -530,15 +531,24 @@ class PresenceDashboard {
       hostname.includes("android") ||
       hostname.includes("galaxy")
     ) {
-      return "bi bi-phone";
+      return "smartphone";
     }
     if (hostname.includes("macbook") || hostname.includes("laptop")) {
-      return "bi bi-laptop";
+      return "laptop";
     }
     if (hostname.includes("tv") || metadata.os === "Tizen") {
-      return "bi bi-tv";
+      return "tv";
     }
-    return "bi bi-question-circle";
+    return "help-circle";
+  }
+
+  refreshIcons() {
+    if (window.lucide) {
+      window.lucide.createIcons({
+        attrs: { width: 16, height: 16, strokeWidth: 2 },
+        nameAttr: "data-lucide",
+      });
+    }
   }
 
   formatTimestamp(timestamp) {

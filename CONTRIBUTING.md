@@ -4,7 +4,7 @@ Thanks for contributing! Please keep changes focused and aligned with the projec
 
 ## Guidelines
 - Keep the app Flask-based (no framework migrations).
-- Preserve SocketIO for real-time updates.
+- Preserve SSE for real-time updates.
 - Non-invasive presence detection only (LAN scan, no GPS).
 - Add tests where possible; keep changes minimal and well-scoped.
 

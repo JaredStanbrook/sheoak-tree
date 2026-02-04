@@ -4,12 +4,12 @@
 We utilize a **Thread-Based** concurrency model.
 
 ### Why Threads?
-1.  **Gevent Compatibility:** The application uses `Flask-SocketIO` with `async_mode='gevent'`. Gevent monkey-patches standard threading to be cooperative. Using standard `threading` primitives ensures our background tasks play nicely with the web server's worker model.
+1.  **WSGI Compatibility:** The application uses a synchronous Flask + SSE model. Standard `threading` primitives keep background tasks compatible with the web server runtime.
 2.  **IO Bound:** Network scanning and GPIO polling are IO-bound operations suitable for threading.
 3.  **Simplicity:** Synchronous logic is easier to reason about, debug, and test than mixing `asyncio` loops with WSGI applications.
 
 ### 🚫 Forbidden Patterns
-* **No `asyncio`:** Do not introduce an `asyncio` event loop. It conflicts with Gevent and adds unnecessary complexity.
+* **No `asyncio`:** Do not introduce an `asyncio` event loop. It adds unnecessary complexity for this service model.
 * **No Multiprocessing:** Unless strictly isolated (e.g., heavy CPU tasks), avoid spawning child processes to prevent orphan processes and shared memory complexity.
 
 ## The `ThreadedService` Interface

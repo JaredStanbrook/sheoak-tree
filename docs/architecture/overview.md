@@ -7,7 +7,7 @@
 1.  **Hardware Abstraction:** interacting with physical GPIO pins, sensors, and relays.
 2.  **State Management:** Maintaining a real-time view of the physical world (doors, motion, temperature).
 3.  **Presence Detection:** Scanning the local network to determine occupancy.
-4.  **User Interface:** Serving a Flask-based web UI and Socket.IO real-time stream.
+4.  **User Interface:** Serving a Flask-based web UI and SSE real-time stream.
 
 ## High-Level Architecture
 
@@ -15,8 +15,8 @@ The system follows a **Service-Oriented Monolith** pattern within a single Pytho
 
 ```mermaid
 graph TD
-    User[User / Web Browser] <--> Nginx/SocketIO
-    Nginx/SocketIO <--> FlaskApp[Flask Web Application]
+    User[User / Web Browser] <--> Nginx
+    Nginx <--> FlaskApp[Flask Web Application]
     
     subgraph "Application Runtime"
         FlaskApp
@@ -45,7 +45,7 @@ graph TD
 
 ### 1. The Web Application (Flask)
 
-* **Role:** Handles HTTP requests, renders templates, and manages Socket.IO connections.
+* **Role:** Handles HTTP requests, renders templates, and streams SSE updates.
 * **Constraint:** It is the *consumer* of system state, not the *owner*. It queries the `HardwareManager` for state; it does not touch GPIO pins directly.
 
 ### 2. ServiceManager

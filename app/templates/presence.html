@@ -3,7 +3,7 @@ endblock %} {% block content %}
 
 <div class="card card-header">
     <div class="nav-brand">
-        <i class="bi bi-house-door"></i> Smart Home Presence
+        <i data-lucide="house"></i> Smart Home Presence
     </div>
     <div class="nav-controls">
         <div class="status-pill">
@@ -11,7 +11,7 @@ endblock %} {% block content %}
             <span id="systemStatusText">Active</span>
         </div>
         <button id="autoRefreshBtn" class="btn btn-sm btn-primary">
-            <i class="bi bi-arrow-clockwise"></i>
+            <i data-lucide="refresh-cw"></i>
             <span id="autoRefreshText">Auto-refresh ON</span>
         </button>
     </div>
@@ -133,7 +133,7 @@ endblock %} {% block content %}
                     All Devices (<span id="allDeviceCount">0</span>)
                 </h2>
                 <button id="filterTrackedBtn" class="btn btn-sm btn-primary">
-                    <i class="bi bi-eye-slash"></i>
+                    <i data-lucide="eye-off"></i>
                     <span id="filterTrackedText">All Devices</span>
                 </button>
             </div>
@@ -233,7 +233,7 @@ endblock %} {% block content %}
                 id="modalRandomMacWarning"
                 class="status-card-danger is-hidden"
             >
-                <i class="bi bi-shield-check"></i>
+                <i data-lucide="shield-check"></i>
                 <div>
                     <strong>Randomized MAC Address</strong>
                     <p class="text-xs" id="modalRandomMacText"></p>
@@ -242,7 +242,7 @@ endblock %} {% block content %}
 
             <div id="modalLinkedMacs" class="form-group is-hidden">
                 <label class="form-label">
-                    <i class="bi bi-link-45deg"></i>
+                    <i data-lucide="link"></i>
                     Linked Random MACs (<span id="linkedMacCount">0</span>)
                 </label>
                 <div id="linkedMacsList"></div>

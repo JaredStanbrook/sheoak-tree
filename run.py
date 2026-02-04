@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 
 from app import create_app
-from app.extensions import socketio
 from config import get_config
 
 load_dotenv()
@@ -30,13 +29,11 @@ def main():
 
     print(f"Starting Server on {host}:{port} (Debug: {debug_mode})")
 
-    socketio.run(
-        app,
+    app.run(
         host=host,
         port=port,
         debug=debug_mode,
         use_reloader=debug_mode,
-        allow_unsafe_werkzeug=debug_mode,
     )
 
 

@@ -1,0 +1,70 @@
+{% extends "base.html" %} {% block content %}
+<div class="layout-grid">
+  <div class="card">
+    <div class="card-header"><h3 class="card-title">Processor Controls</h3></div>
+
+    <div class="form-group">
+      <label class="form-label">Window Size (sec)</label>
+      <input type="number" id="windowSize" class="form-input" value="60" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Sequence Gap (sec)</label>
+      <input type="number" id="gapThreshold" class="form-input" value="300" />
+    </div>
+
+    <div class="d-flex flex-column gap-2 mt-4">
+      <button class="btn btn-primary btn-block" id="fullBtn" onclick="window.ai.process(false)">
+        Rebuild All
+      </button>
+      <button class="btn btn-primary btn-block" id="incBtn" onclick="window.ai.process(true)">
+        Incremental Update
+      </button>
+    </div>
+
+    <div class="mt-4 pt-4 border-top">
+      <div class="d-flex justify-between mb-3 text-sm">
+        <span class="text-muted">Total Sequences</span>
+        <strong id="totalSequences">0</strong>
+      </div>
+      <div class="d-flex justify-between mb-3 text-sm">
+        <span class="text-muted">Labeled</span>
+        <strong id="labeledSequences" class="text-success">0</strong>
+      </div>
+      <div class="d-flex justify-between text-sm">
+        <span class="text-muted">Unlabeled</span>
+        <strong id="unlabeledSequences" class="text-warning">0</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="sequenceList"></div>
+
+    <div id="pagination" class="d-flex justify-center align-center gap-4 mt-4 is-hidden">
+      <button class="btn btn-sm btn-primary" id="prevBtn" onclick="window.ai.changePage(-1)">
+        Previous
+      </button>
+      <span id="pageInfo" class="text-muted text-sm"></span>
+      <button class="btn btn-sm btn-primary" id="nextBtn" onclick="window.ai.changePage(1)">
+        Next
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="sequenceModal" class="modal-overlay">
+  <div class="modal-content modal-content-lg">
+    <div class="modal-header">
+      <h3 class="card-title">Sequence Details</h3>
+      <button
+        class="btn-close"
+        onclick="document.getElementById('sequenceModal').classList.remove('active')">
+        &times;
+      </button>
+    </div>
+    <div id="sequenceDetail" class="modal-body"></div>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/ai.js') }}"></script>
+{% endblock %}

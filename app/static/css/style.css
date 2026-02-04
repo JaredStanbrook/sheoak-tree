@@ -167,6 +167,23 @@ body {
     display: flex;
     flex-direction: column;
 }
+
+.skip-link {
+    position: absolute;
+    left: 16px;
+    top: -48px;
+    z-index: 1000;
+    background: var(--bg-surface-solid);
+    color: var(--color-text-main);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+}
+
+.skip-link:focus {
+    top: 12px;
+}
+
 main {
     flex: 1;
 }

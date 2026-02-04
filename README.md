@@ -1,126 +1,97 @@
 # Sheoak Tree Smart Monitor
 
-Sheoak Tree is a Flask + Flask-SocketIO smart home monitor built for a real sharehouse. It blends live hardware signals, non-invasive network presence detection, and ML-based pattern analysis into a glassmorphism dashboard that runs on a Raspberry Pi or in local mock mode.
+Real-time smart home monitoring with Flask, SSE streaming, network presence detection, and hardware event analytics.
+
+## Why this project
+- Built for a real sharehouse setup with Raspberry Pi support.
+- Privacy-first presence tracking (local network only, no GPS).
+- Includes a complete local dev flow, CI checks, and mock mode for demos.
 
 ## Features
-- Live dashboard (SocketIO, with SSE fallback) for GPIO and sensor events.
-- Presence detection via ARP/MDNS/SNMP scanning (no GPS, no tracking outside your LAN).
-- ML analytics pipeline for labeling sequences and training Random Forest/XGBoost models.
-- “Survival Guide” PDF embedded for house rules and maintenance.
-- Glassmorphism UI with responsive layouts.
-- Mock GPIO mode for demos on macOS/Windows/Linux.
+- Live dashboard for sensor and relay state with streaming updates.
+- Presence detection via ARP, mDNS, and optional SNMP correlation.
+- Analysis dashboard with trend, distribution, and event drill-down charts.
+- AI labeling/training workflow is in active migration (CSV -> DB) and staged for a future release.
+- Mock GPIO mode for local demos without hardware.
 
-## Tech Stack
-- Backend: Python 3.8+, Flask, Flask-SocketIO, SQLAlchemy, Alembic
-- Realtime: SocketIO (gevent/websocket in prod, threading in dev)
-- Frontend: Vanilla JS (ES modules), Chart.js, custom CSS
-- Hardware: Raspberry Pi GPIO (with MockGPIO fallback)
-- ML: Pandas, scikit-learn, XGBoost
+## Stack
+- Backend: Flask, SQLAlchemy, Alembic
+- Frontend: Jinja templates, vanilla JS modules, Chart.js, custom CSS
+- Data: SQLite for app events/device state
+- ML: pandas, scikit-learn, XGBoost
 
-## Architecture (High Level)
-```
-┌─────────────────────────────┐
-│         Browser UI          │
-│  Live / Presence / Analysis │
-└─────────────┬───────────────┘
-              │ SocketIO / SSE
-┌─────────────▼───────────────┐
-│          Flask App          │
-│  Blueprints + Templates     │
-├─────────────┬───────────────┤
-│ Service Manager              │
-│  - Hardware Manager           │
-│  - Presence Monitor           │
-│  - SNMP Scanner (optional)    │
-│  - System Monitor             │
-├─────────────┴───────────────┤
-│ SQLite (events, devices)     │
-└─────────────┬───────────────┘
-              │ GPIO / SNMP / ARP
-┌─────────────▼───────────────┐
-│   Raspberry Pi Hardware      │
-└─────────────────────────────┘
+## Project Layout
+```text
+app/
+  routes/           # Flask blueprints
+  services/         # Presence, hardware, system, ML services
+  templates/        # Jinja templates
+  static/           # CSS, JS, assets
+migrations/         # Alembic migrations
+tests/              # Unit + functional tests
+infra/              # System/service scripts
+docs/               # Architecture and deployment guides
 ```
 
-## Quickstart (Local Dev)
+## Quickstart
 ```bash
 ./setup.sh
 source venv/bin/activate
 cp .env.example .env
 python run.py
 ```
-Visit `http://localhost:5000`.
 
-## Raspberry Pi Setup (Summary)
+App runs at `http://localhost:5000`.
+
+## Standard Dev Commands
 ```bash
-sudo apt-get install -y python3-venv
-./setup.sh
-cp .env.example .env
-# Edit .env: set GPIO_MODE=real, TIMEZONE, SNMP settings, etc.
-python run.py
-```
-For a production service, see `docs/DEPLOY_RPI.md`.
-
-## Mock Mode (No GPIO Required)
-Set `GPIO_MODE=mock` in `.env` (default). The app will simulate sensor changes so the UI stays lively in demos.
-
-## SocketIO (eventlet/gevent)
-- Use SocketIO for real-time updates (better than long-polling/SSE under load).
-- Production: prefer gevent + gevent-websocket worker.
-- Optional: install eventlet and set `SOCKETIO_ASYNC_MODE=eventlet` if you prefer eventlet.
-
-Example production run:
-```bash
-gunicorn -c gunicorn.conf.py wsgi:app
+make run      # start app
+make lint     # ruff check . --fix
+make format   # ruff format .
+make test     # pytest
+make check    # lint + format + tests
+make gpio-usage  # report GPIO pin usage from hardware config
 ```
 
-## Presence Detection (Privacy-First)
-Presence is inferred only from your local network:
-- Active ping sweep + ARP table mapping (no internet / GPS tracking)
-- Optional SNMP client table ingest
-- mDNS enrichment for device names
-
-## ML Pipeline (High Level)
-1. Capture events to SQLite and CSV.
-2. Label sequences via `/ai` (or CLI tools).
-3. Train model: `python app/services/ml/training/train_hardware_model.py`.
-4. Inference runs in the app (feature flags planned).
-
-See `docs/ML_PIPELINE.md` for details.
-
-## Demo / Screenshots
-- Seed demo data:
+If you prefer direct commands:
 ```bash
-python scripts/seed_demo.py --reset
-```
-- Replay into a running server (requires `DEMO_MODE=1` in `.env`):
-```bash
-python scripts/replay_events.py --limit 80 --delay-ms 500
+./venv/bin/ruff check . --fix
+./venv/bin/ruff format .
+./venv/bin/pytest -v
 ```
 
-**Screenshots**
-- `docs/screenshots/dashboard.png` (placeholder)
-- `docs/screenshots/presence.png` (placeholder)
-- `docs/screenshots/analysis.png` (placeholder)
-
-To capture:
-1) Run mock mode + seed demo
-2) Trigger replay
-3) Screenshot each page at 1440px width
-
-## Known Limitations & Roadmap
-- No advanced authentication (planned)
-- ML inference is early-stage (training scripts exist)
-- Hardware camera/audio drivers are stubbed
-
-## Release Tagging
+## Demo Workflow
 ```bash
-git tag -a v1.0.0 -m "v1.0.0"
-git push origin v1.0.0
+make seed
+# in another terminal (with app running and DEMO_MODE=1 in .env)
+make replay
 ```
 
-## Security / Secrets Hygiene
-Do not commit `.env` or real device credentials. See `.env.example` and `SECURITY.md`.
+## ML Workflow
+```bash
+make train
+```
+
+## Deployment
+- Docker compose files: `docker-compose.yml`, `docker-compose.prod.yml`
+- Gunicorn entrypoint: `gunicorn -c gunicorn.conf.py wsgi:app`
+- Raspberry Pi guide: `docs/DEPLOY_RPI.md`
+
+## Docs
+- Architecture: `docs/ARCHITECTURE.md`
+- ML pipeline: `docs/ML_PIPELINE.md`
+- Deployment: `docs/DEPLOYMENT.md`
+- Troubleshooting: `docs/TROUBLESHOOTING.md`
+
+## Testing and Quality Gates
+- Lint: Ruff (`E`, `F`, `B`, `I`)
+- Formatting: Ruff formatter
+- Tests: pytest (`tests/`)
+- CI: GitHub Actions for lint, format check, and tests
+
+## Security
+- Never commit `.env` or credentials.
+- Keep network scan targets and SNMP credentials in environment variables.
 
 ## License
-MIT. See `LICENSE`.
+MIT (`LICENSE`).

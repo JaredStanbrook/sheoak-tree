@@ -13,9 +13,9 @@
 - Set `DISABLE_PRESENCE_MONITOR=1` to disable scanning.
 - For SNMP, verify `SNMP_TARGET_IP` and community string.
 
-## SocketIO Not Connecting
-- Confirm `SOCKETIO_PATH` matches the client path.
-- In production, use gevent-websocket worker or eventlet.
+## Live Stream Not Connecting
+- Confirm the browser can reach `/stream`.
+- Check reverse proxy settings allow long-lived HTTP connections.
 
 ## Database Errors
 - For local dev, delete `app.db` and re-run `./setup.sh`.

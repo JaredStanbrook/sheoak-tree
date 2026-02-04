@@ -4,7 +4,7 @@ from flask import Flask, jsonify, render_template, request
 
 from app.cli import register_commands
 from app.config import Config
-from app.extensions import db, migrate, socketio
+from app.extensions import db, migrate
 from app.logging_config import setup_logging
 from app.services.core import ServiceManager
 from app.services.hardware_manager import HardwareManager
@@ -38,13 +38,6 @@ def create_app(config_class=Config):
     # Initialize Extensions
     db.init_app(app)
     migrate.init_app(app, db)
-    socketio.init_app(
-        app,
-        async_mode=app.config.get("SOCKETIO_ASYNC_MODE", "gevent"),
-        cors_allowed_origins="*",
-        path=app.config.get("SOCKETIO_PATH", "/sheoak/socket.io"),
-    )
-
     # Initialize Service Manager
     app.service_manager = ServiceManager()
 
@@ -91,9 +84,8 @@ def create_app(config_class=Config):
             "sheoak_config": {
                 "timezone": app.config.get("TIMEZONE", "Australia/Perth"),
                 "locale": app.config.get("LOCALE", "en-AU"),
-                "socketioEnabled": app.config.get("SOCKETIO_ENABLED", True),
-                "socketioPath": app.config.get("SOCKETIO_PATH", "/sheoak/socket.io"),
-            }
+            },
+            "ai_workbench_enabled": app.config.get("AI_WORKBENCH_ENABLED", False),
         }
 
     def start_services():

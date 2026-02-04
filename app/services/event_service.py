@@ -40,13 +40,6 @@ class EventBus:
                 # Only unsubscribe on fatal errors (e.g. queue closed)
                 self.unsubscribe(q)
 
-        try:
-            from app.extensions import socketio
-
-            socketio.emit(event_type, data)
-        except Exception as exc:
-            logger.debug("SocketIO emit skipped: %s", exc)
-
 
 # Global Instance
 bus = EventBus()

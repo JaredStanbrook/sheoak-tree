@@ -186,7 +186,7 @@ class CameraCardRenderer extends CardRenderer {
         <div class="camera-preview" id="camera-preview-${this.hw.hardware_id}">
           <img src="/api/cameras/${this.hw.hardware_id}/snapshot"
                alt="${Utils.escape(this.hw.name)}"
-               onerror="this.src='/static/img/camera-offline.png'">
+               onerror="this.src='/static/img/camera-offline.svg'">
         </div>
         <div class="camera-overlay">
           <div class="hardware-name">${Utils.escape(this.hw.name)}</div>

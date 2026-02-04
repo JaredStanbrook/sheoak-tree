@@ -54,8 +54,11 @@ def analysis():
 
 @bp.route("/ai")
 def ai_training():
-    """Sequence Review"""
-    return render_template("ai.html", active_page="ai")
+    """AI roadmap / workbench."""
+    template = (
+        "ai_workbench.html" if current_app.config.get("AI_WORKBENCH_ENABLED", False) else "ai.html"
+    )
+    return render_template(template, active_page="ai")
 
 
 @bp.route("/<filename>.pdf")

@@ -27,10 +27,6 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL") or "sqlite:///app.db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    SOCKETIO_PATH = os.environ.get("SOCKETIO_PATH", "/sheoak/socket.io")
-    SOCKETIO_ASYNC_MODE = os.environ.get("SOCKETIO_ASYNC_MODE", "gevent")
-    SOCKETIO_ENABLED = _env_bool("SOCKETIO_ENABLED", True)
-
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     LOG_DIR = os.environ.get("LOG_DIR", "./logs")
     LOG_FORMAT = os.environ.get("LOG_FORMAT", "text")
@@ -65,6 +61,9 @@ class Config:
     DEMO_REPLAY_DELAY_MS = _env_int("DEMO_REPLAY_DELAY_MS", 800)
     DEMO_REPLAY_BATCH = _env_int("DEMO_REPLAY_BATCH", 20)
 
+    # ML/AI workbench is intentionally gated while the storage migration is in progress.
+    AI_WORKBENCH_ENABLED = _env_bool("AI_WORKBENCH_ENABLED", False)
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
@@ -80,7 +79,6 @@ class TestingConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     DISABLE_PRESENCE_MONITOR = True
-    SOCKETIO_ENABLED = False
 
 
 def get_config():
