@@ -31,7 +31,6 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
-          black --check .
 
       - name: Run Tests
         env:
