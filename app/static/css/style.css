@@ -186,6 +186,13 @@ body {
 
 main {
     flex: 1;
+    position: relative;
+    z-index: 1;
+}
+
+nav {
+    position: relative;
+    z-index: 200;
 }
 
 a {
@@ -1151,6 +1158,14 @@ nav .card-header {
     .desktop-only {
         display: none;
     }
+
+    .nav-controls {
+        position: relative;
+        z-index: 250;
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
     /* Hamburger Button Style */
     .mobile-toggle {
         display: flex;
@@ -1165,6 +1180,8 @@ nav .card-header {
         cursor: pointer;
         z-index: 200; /* Above overlay */
         transition: var(--transition);
+        position: relative;
+        pointer-events: auto;
     }
 
     .mobile-toggle .bar {
@@ -1305,6 +1322,10 @@ nav .card-header {
         gap: 16px;
         top: 0;
         margin-bottom: 20px;
+    }
+
+    nav .card-header {
+        align-items: center;
     }
 
     /* 3. Card Spacing */

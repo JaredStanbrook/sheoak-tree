@@ -10,6 +10,7 @@ Flask-Migrate==4.1.0
 Flask-SQLAlchemy==3.1.1
 gevent==25.9.1
 greenlet==3.3.0
+gunicorn==23.0.0
 h11==0.16.0
 idna==3.11
 ifaddr==0.2.0
@@ -35,6 +36,7 @@ pysnmp==7.1.22
 pysnmpcrypto==0.0.4
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
+pyserial==3.5
 requests==2.32.5
 six==1.17.0
 SQLAlchemy==2.0.45

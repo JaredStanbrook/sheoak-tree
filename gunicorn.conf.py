@@ -1,11 +1,12 @@
 import os
 
 bind = "0.0.0.0:8000"
-workers = int(os.environ.get("WEB_CONCURRENCY", "2"))
+workers = int(os.environ.get("WEB_CONCURRENCY", "1"))
 worker_class = os.environ.get(
     "GUNICORN_WORKER_CLASS",
     "gthread",
 )
+threads = int(os.environ.get("GUNICORN_THREADS", "8"))
 worker_connections = 1000
 timeout = 120
 keepalive = 5

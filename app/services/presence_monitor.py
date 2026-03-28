@@ -42,6 +42,7 @@ class IntelligentPresenceMonitor(BaseService):
         self.correlation_threshold = 0.65
         self.scan_count = 0
         self.snapshot_interval = 10
+        self.mp_context = multiprocessing.get_context("spawn")
 
     def start(self):
         """Start the scanner process and consumer thread."""
@@ -52,12 +53,12 @@ class IntelligentPresenceMonitor(BaseService):
         self.running = True
 
         # 1. Setup IPC
-        self.result_queue = multiprocessing.Queue()
-        self.stop_event = multiprocessing.Event()
+        self.result_queue = self.mp_context.Queue()
+        self.stop_event = self.mp_context.Event()
 
         # 2. Start Scanner (Isolated Process)
         # This prevents network I/O blocking the main web thread
-        self.scan_process = multiprocessing.Process(
+        self.scan_process = self.mp_context.Process(
             target=scanner_process_entry,
             args=(
                 self.target_ip,

@@ -15,6 +15,7 @@ Defines the contract:
 ### Concrete Implementations
 1.  **`GpioBinaryStrategy`:** Handles inputs (Motion, Door). Includes software debouncing.
 2.  **`GpioRelayStrategy`:** Handles outputs. Implements `toggle()`.
+3.  **`SerialInputStrategy`:** Handles read-only serial feeds and maps incoming serial keys onto local hardware definitions.
 
 ## The Hardware Manager
 
@@ -30,6 +31,14 @@ The `HardwareManager` is the conductor. It:
 2.  **Strategy:** Loads this config on instantiation.
 3.  **Snapshot:** When polling, the Strategy merges the live value with the config.
 4.  **UI:** The frontend receives a JSON object containing the resolved icon class and color. The frontend logic is "dumb"—it just renders what the backend tells it.
+
+## Serial Adapter Mode
+Serial-backed hardware uses the same `HardwareManager` polling loop as GPIO-backed devices. Each serial hardware definition stores:
+* `serial_port`: physical adapter path, such as `/dev/ttyACM0`
+* `baud_rate`: serial speed
+* `source_key`: the identifier expected from the serial payload
+
+A shared serial reader listens on the configured port, parses incoming lines, and caches the latest reading by `source_key`. Strategies then read from that cache. This keeps local hardware names and IDs authoritative in the Flask app, so Arduino-side labels can be remapped instead of written directly into the database.
 
 ## Mock Mode
 If `RPi.GPIO` is not found (e.g., developing on a Mac/PC), the system automatically falls back to `MockGPIO`. This simulated backend allows full end-to-end testing without physical hardware.

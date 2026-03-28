@@ -47,6 +47,43 @@
                        value="{{ edit_hardware.configuration.get('pin') if edit_hardware and edit_hardware.configuration else '' }}">
                 <small class="text-muted">Required for GPIO devices</small>
             </div>
+            <div class="row">
+                <div class="col">
+                    <label class="form-label">Serial Port</label>
+                    <input type="text" name="config_serial_port" class="form-input" placeholder="e.g. /dev/ttyACM0"
+                           value="{{ edit_hardware.configuration.get('serial_port', '') if edit_hardware else '' }}">
+                </div>
+                <div class="col">
+                    <label class="form-label">Baud Rate</label>
+                    <input type="number" name="config_baud_rate" class="form-input" placeholder="e.g. 115200"
+                           value="{{ edit_hardware.configuration.get('baud_rate', '') if edit_hardware else '' }}">
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col">
+                    <label class="form-label">Serial Source Key</label>
+                    <input type="text" name="config_source_key" class="form-input" placeholder="e.g. front_door"
+                           value="{{ edit_hardware.configuration.get('source_key', '') if edit_hardware else '' }}">
+                    <small class="text-muted">Maps incoming serial identifiers to this local hardware entry.</small>
+                </div>
+                <div class="col">
+                    <label class="form-label">Value Type</label>
+                    <input type="text" name="config_value_type" class="form-input" placeholder="boolean or float"
+                           value="{{ edit_hardware.configuration.get('value_type', '') if edit_hardware else '' }}">
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col">
+                    <label class="form-label">Unit</label>
+                    <input type="text" name="config_unit" class="form-input" placeholder="e.g. boolean, celsius"
+                           value="{{ edit_hardware.configuration.get('unit', '') if edit_hardware else '' }}">
+                </div>
+                <div class="col">
+                    <label class="form-label">Debounce (ms)</label>
+                    <input type="number" name="config_debounce_ms" class="form-input" placeholder="e.g. 300"
+                           value="{{ edit_hardware.configuration.get('debounce_ms', '') if edit_hardware else '' }}">
+                </div>
+            </div>
             <div class="form-group">
                 <label class="form-label">Driver Interface</label>
                 <select name="driver_interface" class="form-select">
@@ -125,6 +162,12 @@
                             <div class="text-xs text-mono lh-sm">
                                 {% if hardware.configuration.get('pin') %}
                                     <span class="badge badge-gray">Pin: {{ hardware.configuration.get('pin') }}</span>
+                                {% endif %}
+                                {% if hardware.configuration.get('serial_port') %}
+                                    <span class="badge badge-gray">{{ hardware.configuration.get('serial_port') }}</span>
+                                {% endif %}
+                                {% if hardware.configuration.get('source_key') %}
+                                    <span class="badge badge-gray">Key: {{ hardware.configuration.get('source_key') }}</span>
                                 {% endif %}
                                 {% if hardware.configuration.get('active_icon') %}
                                     <span class="text-muted" title="Has custom UI icons">🎨</span>

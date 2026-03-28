@@ -13,7 +13,7 @@ from app.models import Event, Hardware
 from app.services import hardware_strategies
 from app.services.core import ThreadedService
 from app.services.event_service import bus
-from app.services.hardware_strategies import GPIO, HardwareFactory, MockGPIO
+from app.services.hardware_strategies import GPIO, HardwareFactory, MockGPIO, SerialAdapterRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,14 @@ class HardwareManager(ThreadedService):
                     self._handle_event(strategy, val, unit)
             except Exception as e:
                 logger.error(f"Error reading hardware {strategy.name}: {e}")
+
+    def stop(self):
+        """Stop polling and release shared hardware resources."""
+        super().stop()
+        try:
+            SerialAdapterRegistry.stop_all()
+        finally:
+            GPIO.cleanup()
 
     def reload_config(self):
         """
@@ -333,4 +341,5 @@ class HardwareManager(ThreadedService):
 
     def cleanup(self):
         """Custom cleanup hook called by ServiceManager on shutdown."""
+        SerialAdapterRegistry.stop_all()
         GPIO.cleanup()

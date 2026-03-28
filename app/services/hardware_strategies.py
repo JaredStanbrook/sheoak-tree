@@ -1,16 +1,315 @@
 """
 Hardware Strategies
 Abstracts the physical interaction (GPIO, I2C, etc.) from the application logic.
-Supports: Binary sensors, Relays, Environmental sensors, Audio, and Cameras
+Supports: Binary sensors, Relays, Environmental sensors, Serial adapters, Audio, and Cameras
 """
 
+import json
 import logging
 import os
 import random
+import threading
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_bool(value):
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, (int, float)):
+        return value != 0
+
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {
+            "1",
+            "true",
+            "on",
+            "open",
+            "motion",
+            "active",
+            "high",
+            "yes",
+            "triggered",
+            "detected",
+        }:
+            return True
+        if normalized in {
+            "0",
+            "false",
+            "off",
+            "closed",
+            "idle",
+            "inactive",
+            "low",
+            "no",
+            "clear",
+            "cleared",
+            "normal",
+        }:
+            return False
+
+    return None
+
+
+def _coerce_float(value):
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    if isinstance(value, str):
+        normalized = value.strip()
+        if not normalized:
+            return None
+        try:
+            return float(normalized)
+        except ValueError:
+            coerced_bool = _coerce_bool(normalized)
+            if coerced_bool is not None:
+                return 1.0 if coerced_bool else 0.0
+
+    return None
+
+
+def _parse_bool_config(value, default=False):
+    coerced = _coerce_bool(value)
+    if coerced is None:
+        return default
+    return coerced
+
+
+def _parse_int_config(value, default):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_float_config(value, default):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_serial_entry(entry):
+    if not isinstance(entry, dict):
+        return None
+
+    key = None
+    for candidate in ("source_key", "sensor", "device", "device_name", "name", "id", "key", "input"):
+        if entry.get(candidate):
+            key = str(entry[candidate]).strip()
+            break
+
+    raw_value = None
+    for candidate in ("value", "state", "reading", "status"):
+        if candidate in entry:
+            raw_value = entry[candidate]
+            break
+
+    if not key or raw_value is None:
+        return None
+
+    value = _coerce_float(raw_value)
+    if value is None:
+        return None
+
+    unit = entry.get("unit")
+    return {
+        "key": key,
+        "value": value,
+        "unit": str(unit).strip() if unit else None,
+        "payload": entry,
+    }
+
+
+def parse_serial_line(line):
+    stripped = (line or "").strip()
+    if not stripped:
+        return []
+
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        parsed = None
+
+    if isinstance(parsed, dict):
+        if isinstance(parsed.get("readings"), list):
+            return [item for item in (_normalize_serial_entry(entry) for entry in parsed["readings"]) if item]
+
+        if isinstance(parsed.get("sensors"), dict):
+            updates = []
+            for key, value in parsed["sensors"].items():
+                if isinstance(value, dict):
+                    entry = dict(value)
+                    entry.setdefault("source_key", key)
+                else:
+                    entry = {"source_key": key, "value": value}
+                normalized = _normalize_serial_entry(entry)
+                if normalized:
+                    updates.append(normalized)
+            return updates
+
+        normalized = _normalize_serial_entry(parsed)
+        return [normalized] if normalized else []
+
+    if "," in stripped:
+        parts = [part.strip() for part in stripped.split(",")]
+        if len(parts) >= 2:
+            normalized = _normalize_serial_entry(
+                {
+                    "source_key": parts[0],
+                    "value": parts[1],
+                    "unit": parts[2] if len(parts) >= 3 else None,
+                }
+            )
+            return [normalized] if normalized else []
+
+    for separator in ("=", ":"):
+        if separator in stripped:
+            key, value = [part.strip() for part in stripped.split(separator, 1)]
+            normalized = _normalize_serial_entry({"source_key": key, "value": value})
+            return [normalized] if normalized else []
+
+    return []
+
+
+class SerialAdapterRegistry:
+    _readers = {}
+    _lock = threading.RLock()
+
+    @classmethod
+    def get_reader(cls, port, baud_rate=9600, timeout=1.0):
+        registry_key = (port, baud_rate, timeout)
+        with cls._lock:
+            reader = cls._readers.get(registry_key)
+            if reader is None:
+                reader = SerialLineReader(port=port, baud_rate=baud_rate, timeout=timeout)
+                cls._readers[registry_key] = reader
+            reader.start()
+            return reader
+
+    @classmethod
+    def stop_all(cls):
+        with cls._lock:
+            readers = list(cls._readers.values())
+            cls._readers = {}
+
+        for reader in readers:
+            reader.stop()
+
+
+class SerialLineReader:
+    def __init__(self, port, baud_rate=9600, timeout=1.0):
+        self.port = port
+        self.baud_rate = baud_rate
+        self.timeout = timeout
+        self._samples = {}
+        self._lock = threading.RLock()
+        self._thread = None
+        self._stop_event = threading.Event()
+        self._serial = None
+        self._serial_module = None
+        self._warning_logged = False
+
+        try:
+            import serial
+
+            self._serial_module = serial
+        except ImportError:
+            logger.warning("pyserial is not installed. Serial-backed hardware will stay offline.")
+
+    def start(self):
+        if self._thread and self._thread.is_alive():
+            return
+
+        self._stop_event.clear()
+        self._thread = threading.Thread(
+            target=self._run,
+            name=f"SerialLineReader:{self.port}",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def get_sample(self, source_key):
+        with self._lock:
+            return self._samples.get(source_key)
+
+    def stop(self):
+        self._stop_event.set()
+        try:
+            if self._serial is not None:
+                self._serial.close()
+        except Exception:
+            pass
+
+        if self._thread:
+            self._thread.join(timeout=2.0)
+        self._serial = None
+
+    def _open_serial(self):
+        if self._serial_module is None:
+            return False
+
+        try:
+            self._serial = self._serial_module.Serial(
+                self.port,
+                self.baud_rate,
+                timeout=self.timeout,
+            )
+            self._warning_logged = False
+            logger.info("Connected serial adapter on %s @ %s", self.port, self.baud_rate)
+            return True
+        except Exception as exc:
+            if not self._warning_logged:
+                logger.warning(
+                    "Serial adapter unavailable on %s @ %s: %s",
+                    self.port,
+                    self.baud_rate,
+                    exc,
+                )
+                self._warning_logged = True
+            return False
+
+    def _run(self):
+        while not self._stop_event.is_set():
+            if self._serial is None and not self._open_serial():
+                time.sleep(2.0)
+                continue
+
+            try:
+                raw = self._serial.readline()
+                if not raw:
+                    continue
+
+                line = raw.decode("utf-8", errors="replace").strip()
+                for update in parse_serial_line(line):
+                    self._publish(update)
+            except Exception as exc:
+                logger.warning("Serial read failed on %s: %s", self.port, exc)
+                try:
+                    if self._serial is not None:
+                        self._serial.close()
+                except Exception:
+                    pass
+                self._serial = None
+                time.sleep(1.0)
+
+    def _publish(self, update):
+        source_key = update["key"]
+        sample = {
+            "value": update["value"],
+            "unit": update.get("unit"),
+            "timestamp": datetime.now(),
+            "payload": update.get("payload", {}),
+        }
+        with self._lock:
+            self._samples[source_key] = sample
+
 
 # ============================================================
 # UI CONFIGURATION DEFAULTS
@@ -269,6 +568,114 @@ class GpioRelayStrategy(HardwareStrategy):
         new_state = GPIO.LOW if curr == GPIO.HIGH else GPIO.HIGH
         GPIO.output(self.pin, new_state)
         return new_state
+
+
+class SerialInputStrategy(HardwareStrategy):
+    """Read-only input strategy backed by a shared serial adapter."""
+
+    def __init__(self, hw_model):
+        super().__init__(hw_model)
+        self.serial_port = self.config.get("serial_port") or self.config.get("port")
+        self.baud_rate = _parse_int_config(self.config.get("baud_rate"), 9600)
+        self.serial_timeout = _parse_float_config(self.config.get("serial_timeout"), 1.0)
+        self.source_key = str(
+            self.config.get("source_key")
+            or self.config.get("serial_key")
+            or self.config.get("device_key")
+            or self.name
+        )
+        self.value_type = str(self.config.get("value_type") or "boolean").strip().lower()
+        self.unit = self.config.get("unit") or (
+            "boolean" if self.value_type == "boolean" else None
+        )
+        self.emit_on_change_only = _parse_bool_config(
+            self.config.get("emit_on_change_only"),
+            default=self.value_type == "boolean",
+        )
+        self.debounce_ms = _parse_int_config(self.config.get("debounce_ms"), 300)
+        self.auto_clear_seconds = _parse_float_config(
+            self.config.get("auto_clear_seconds"),
+            8.0 if self.type == "motion_sensor" else 0.0,
+        )
+        self.reader = None
+        self.last_sample_timestamp = None
+        self.current_value = 0.0 if self.value_type == "boolean" else None
+
+    def setup(self):
+        if not self.serial_port:
+            raise ValueError(
+                f"Serial hardware '{self.name}' requires configuration.serial_port or configuration.port"
+            )
+
+        self.reader = SerialAdapterRegistry.get_reader(
+            port=self.serial_port,
+            baud_rate=self.baud_rate,
+            timeout=self.serial_timeout,
+        )
+
+    def read(self):
+        if not self.reader:
+            return None
+
+        sample = self.reader.get_sample(self.source_key)
+        now = datetime.now()
+
+        if not sample:
+            return self._maybe_auto_clear(now)
+
+        sample_timestamp = sample.get("timestamp")
+        if self.last_sample_timestamp and sample_timestamp <= self.last_sample_timestamp:
+            return self._maybe_auto_clear(now)
+
+        new_value = self._coerce_sample_value(sample.get("value"))
+        if new_value is None:
+            self.last_sample_timestamp = sample_timestamp
+            return self._maybe_auto_clear(now)
+
+        unit = sample.get("unit") or self.unit or "reading"
+
+        if self.emit_on_change_only and self.current_value == new_value:
+            self.last_sample_timestamp = sample_timestamp
+            return self._maybe_auto_clear(now)
+
+        if self.current_value != new_value:
+            elapsed_ms = (now - self.last_change).total_seconds() * 1000
+            if self.current_value is not None and elapsed_ms < self.debounce_ms:
+                return None
+            self.last_change = now
+
+        self.current_value = new_value
+        self.last_sample_timestamp = sample_timestamp
+        return (new_value, unit)
+
+    def _coerce_sample_value(self, value):
+        if self.value_type == "boolean":
+            coerced = _coerce_bool(value)
+            if coerced is None:
+                numeric = _coerce_float(value)
+                if numeric is None:
+                    return None
+                coerced = numeric != 0.0
+            return 1.0 if coerced else 0.0
+
+        return _coerce_float(value)
+
+    def _maybe_auto_clear(self, now):
+        if (
+            self.value_type != "boolean"
+            or self.current_value != 1.0
+            or self.auto_clear_seconds <= 0
+            or self.last_sample_timestamp is None
+        ):
+            return None
+
+        elapsed = (now - self.last_sample_timestamp).total_seconds()
+        if elapsed < self.auto_clear_seconds:
+            return None
+
+        self.current_value = 0.0
+        self.last_change = now
+        return (0.0, self.unit or "boolean")
 
 
 class DHT22Strategy(HardwareStrategy):
@@ -552,6 +959,7 @@ class HardwareFactory:
         strategy_map = {
             "gpio_binary": GpioBinaryStrategy,
             "gpio_relay": GpioRelayStrategy,
+            "serial_input": SerialInputStrategy,
             "dht_22": DHT22Strategy,
             "i2c_generic": I2CGenericStrategy,
             "microphone": MicrophoneStrategy,

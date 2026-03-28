@@ -8,6 +8,7 @@ class AnalysisController {
     this.chart = null;
     this.detailChart = null;
     this.openChart = null;
+    this.lastAnalysisPayload = null;
     this.elements = {
       ctx: document.getElementById("frequencyChart"),
       info: document.getElementById("chartInfo"),
@@ -79,6 +80,7 @@ class AnalysisController {
     this.initDetailChart();
     this.initOpenChart();
     this.initSecondaryCharts();
+    this.ensureChartsReady();
     const hasUrlFilters = this.loadFiltersFromUrl();
     if (!hasUrlFilters) {
       this.setDefaultRange();
@@ -86,6 +88,30 @@ class AnalysisController {
     }
     this.requestFrequencyData();
     this.loadActivityHistory();
+  }
+
+  async ensureChartsReady() {
+    if (typeof Chart !== "undefined") {
+      return;
+    }
+
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+      if (typeof Chart !== "undefined") {
+        this.initChart();
+        this.initDetailChart();
+        this.initOpenChart();
+        this.initSecondaryCharts();
+        if (this.lastAnalysisPayload) {
+          this.renderAll(this.lastAnalysisPayload.data, this.lastAnalysisPayload.filters);
+        }
+        return;
+      }
+    }
+
+    this.setBanner(
+      "Charts are unavailable because Chart.js did not load. Historical events are still being stored.",
+    );
   }
 
   initChart() {
@@ -241,6 +267,7 @@ class AnalysisController {
       this.setBanner();
       const data = await this.fetchAnalysis(filters);
       if (!data || !data.success) return;
+      this.lastAnalysisPayload = { data, filters };
       this.renderAll(data, filters);
     } catch (e) {
       console.error("Failed to load frequency data:", e);
@@ -288,8 +315,14 @@ class AnalysisController {
 
     Object.keys(hardwares).forEach((label) => {
       const rawData = hardwares[label];
+      const meta = summary.find((item) => item.name === label) || null;
       const isDoor =
-        Array.isArray(rawData) && rawData.length > 0 && rawData[0].hasOwnProperty("state");
+        meta?.config_type === "door" ||
+        (Array.isArray(rawData) &&
+          rawData.length > 0 &&
+          typeof rawData[0] === "object" &&
+          rawData[0] !== null &&
+          Array.isArray(rawData[0].x));
 
       if (isDoor) {
         // Door logic remains same
@@ -844,9 +877,9 @@ class AnalysisController {
 
   setDefaultRange() {
     const now = new Date();
-    const endValue = now.toISOString().slice(0, 16);
     const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const startValue = start.toISOString().slice(0, 16);
+    const endValue = this.toLocalDateTimeValue(now);
+    const startValue = this.toLocalDateTimeValue(start);
     if (this.elements.rangeStart) this.elements.rangeStart.value = startValue;
     if (this.elements.rangeEnd) this.elements.rangeEnd.value = endValue;
   }
@@ -864,11 +897,24 @@ class AnalysisController {
     if (range === "7d") hours = 168;
     if (range === "30d") hours = 720;
     const start = new Date(now.getTime() - hours * 60 * 60 * 1000);
-    if (this.elements.rangeStart) this.elements.rangeStart.value = start.toISOString().slice(0, 16);
-    if (this.elements.rangeEnd) this.elements.rangeEnd.value = now.toISOString().slice(0, 16);
+    if (this.elements.rangeStart) {
+      this.elements.rangeStart.value = this.toLocalDateTimeValue(start);
+    }
+    if (this.elements.rangeEnd) {
+      this.elements.rangeEnd.value = this.toLocalDateTimeValue(now);
+    }
     if (!silent) {
       this.applyFilters();
     }
+  }
+
+  toLocalDateTimeValue(date) {
+    const pad = (value) => String(value).padStart(2, "0");
+    return [
+      date.getFullYear(),
+      pad(date.getMonth() + 1),
+      pad(date.getDate()),
+    ].join("-") + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
   applyFilters() {

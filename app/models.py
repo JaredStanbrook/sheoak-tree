@@ -5,6 +5,7 @@ from app.extensions import db
 HARDWARE_INTERFACES = {
     "gpio_binary": "Binary Sensor",
     "gpio_relay": "Relay Switch",
+    "serial_input": "Serial Input Adapter",
     "dht_22": "DHT22 Temp/Humidity",
     "i2c_generic": "I2C Environmental",
     "microphone": "Microphone",

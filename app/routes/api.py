@@ -566,12 +566,16 @@ def _build_motion_stats(events, cutoff, interval, hours):
 
 
 def _resolve_bucket_minutes(start, end, bucket_raw):
+    total_minutes = max(1, int((end - start).total_seconds() / 60))
+    min_bucket_for_range = max(1, (total_minutes + 1999) // 2000)
+
     if bucket_raw and bucket_raw != "auto":
         try:
-            return max(1, int(bucket_raw))
+            requested = max(1, int(bucket_raw))
+            return max(requested, min_bucket_for_range)
         except ValueError:
-            return 30
-    minutes = (end - start).total_seconds() / 60
+            return max(30, min_bucket_for_range)
+    minutes = total_minutes
     if minutes <= 60:
         return 1
     if minutes <= 6 * 60:
